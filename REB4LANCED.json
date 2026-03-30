@@ -1,0 +1,14 @@
+{
+  "id": "REB4LANCED",
+  "name": "REB4LANCED",
+  "display_name": "REB4LANCED",
+  "author": ["Amo"],
+  "description": "R",
+  "prefix": "reb4l",
+  "main_file": "REB4LANCED.lua",
+  "priority": 0,
+  "badge_colour": "7A0DDB",
+  "version": "1.0.0",
+  "dependencies": ["Steamodded (>=1.0.0~BETA-1221a)"],
+  "optional_dependencies": ["JokerDisplay"]
+}
