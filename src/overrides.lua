@@ -380,6 +380,27 @@ local function reb4l_vanilla_white(ante)
     return b
 end
 
+-- Per-stake blind chip scaling: override get_blind_amount so both the blind select
+-- screen and Blind:set_blind (which calls this function) see stake-appropriate values.
+-- Falls back to vanilla if blind_scaling_enhanced is off, no active game, or mod stake.
+local reb4l_orig_get_blind_amount = get_blind_amount
+function get_blind_amount(ante)
+    if REB4LANCED.config.blind_scaling_enhanced
+        and G.GAME and G.GAME.stake then
+        local stake = reb4l_stake_index[SMODS.stake_from_index(G.GAME.stake)]
+        if stake then
+            if ante < 1 then return 100 end
+            if ante <= 8 then
+                return reb4l_base_chips[stake][ante]
+            else
+                local vw = reb4l_vanilla_white(ante)
+                return math.ceil(reb4l_base_chips[stake][8] / 50000 * vw)
+            end
+        end
+    end
+    return reb4l_orig_get_blind_amount(ante)
+end
+
 -- Red Stake: also show reduced payout on the blind select screen.
 -- The select screen bakes blind_choice.config.dollars (G.P_BLINDS[key].dollars) as a
 -- static text node, so temporarily patch the value, call original, then restore it.
@@ -404,25 +425,6 @@ local reb4l_orig_blind_set_blind = Blind.set_blind
 function Blind:set_blind(blind, reset, silent)
     local result = reb4l_orig_blind_set_blind(self, blind, reset, silent)
     if not reset and G.GAME and G.GAME.round_resets then
-        local ante  = G.GAME.round_resets.ante
-        local stake = reb4l_stake_index[SMODS.stake_from_index(G.GAME.stake)]
-        -- Per-stake chip scaling
-        if REB4LANCED.config.blind_scaling_enhanced
-            and ante and stake then
-            local base
-            if ante <= 8 then
-                base = reb4l_base_chips[stake][ante]
-            else
-                local vw = reb4l_vanilla_white(ante)
-                base = math.ceil(reb4l_base_chips[stake][8] / 50000 * vw)
-            end
-            local mult = self.mult or 1
-            if base then
-                self.chips     = math.ceil(base * mult)
-                self.chip_text = number_format(self.chips)
-                if G.HUD_blind then G.HUD_blind:recalculate() end
-            end
-        end
         -- Red Stake payout reduction (self.dollars is the blind payout field in blind.lua)
         if G.GAME.modifiers and G.GAME.modifiers.reb4l_payout_decrease
             and self.dollars and type(self.dollars) == 'number' then
@@ -435,35 +437,62 @@ function Blind:set_blind(blind, reset, silent)
 end
 
 -- Black Stake: discarded cards are reshuffled into the deck.
--- Must wrap G.FUNCS.discard_cards_from_highlighted, not the pre_discard context:
--- pre_discard fires BEFORE draw_card events are queued, so an event queued there
--- would land ahead of the discard animations. Wrapping the FUNCS entry point lets
--- us queue the reshuffle AFTER the original runs (and its draw_card events are queued).
-local reb4l_orig_discard_highlighted = G.FUNCS.discard_cards_from_highlighted
-G.FUNCS.discard_cards_from_highlighted = function(e, hook)
-    local to_reshuffle = {}
-    if REB4LANCED.config.black_stake_enhanced
-        and G.GAME and G.GAME.stake and G.GAME.stake >= 4
-        and G.hand and G.hand.highlighted then
-        for _, card in ipairs(G.hand.highlighted) do
-            to_reshuffle[#to_reshuffle + 1] = card
+--
+-- Approach mirrors Hit the Road exactly:
+--   1. During pre_discard, queue event A (trigger='after', blocking=false).
+--   2. A fires immediately (it's first in queue, nothing blocks it).
+--      A calls draw_card × N, appending events E1..EN at the queue tail.
+--      A also appends a shuffle event G after E1..EN.
+--   3. Discard B-events (trigger='before', blocking=true) run next, moving
+--      cards to G.discard.
+--   4. STATE_COMPLETE=false fires → DRAW_TO_HAND state set.
+--   5. E1..EN fire (blockable, wait behind B-events): cards move from
+--      G.discard → G.deck.  Cards are now IN the deck.
+--   6. G fires (blockable, waits behind E-events): deck shuffled with cards
+--      already present → truly random positions.
+--   7. DRAW_TO_HAND handler runs (next game-loop iteration): draws from the
+--      shuffled deck.  Discarded cards appear at random positions.
+--
+-- blocking=false on A and G means they never block UI events (View Deck, etc.).
+local reb4l_orig_calculate_context = SMODS.calculate_context
+SMODS.calculate_context = function(ctx)
+    if ctx.pre_discard and ctx.full_hand
+        and REB4LANCED.config.black_stake_enhanced
+        and G.GAME and G.GAME.stake then
+        local stake = reb4l_stake_index[SMODS.stake_from_index(G.GAME.stake)]
+        if stake and stake >= 4 then
+            local to_reshuffle = {}
+            for _, c in ipairs(ctx.full_hand) do
+                to_reshuffle[#to_reshuffle + 1] = c
+            end
+            G.E_MANAGER:add_event(Event({
+                trigger = 'after',
+                blocking = false,
+                blockable = true,
+                func = function()
+                    local n = #to_reshuffle
+                    for i, card in ipairs(to_reshuffle) do
+                        draw_card(G.discard, G.deck, (i * 100) / n, 'back', false, card)
+                    end
+                    -- Shuffle queued separately so it runs AFTER E-events emplace cards
+                    G.E_MANAGER:add_event(Event({
+                        blocking = false,
+                        blockable = true,
+                        func = function()
+                            if G.deck then
+                                G.deck:shuffle('reb4l_black_'
+                                    .. (G.GAME.hands_played or 0) .. '_'
+                                    .. (G.GAME.current_round.discards_used or 0))
+                            end
+                            return true
+                        end
+                    }))
+                    return true
+                end
+            }))
         end
     end
-    reb4l_orig_discard_highlighted(e, hook)
-    if #to_reshuffle > 0 then
-        G.E_MANAGER:add_event(Event({
-            trigger = 'after',
-            blocking = true,
-            blockable = true,
-            func = function()
-                for i, card in ipairs(to_reshuffle) do
-                    draw_card(G.discard, G.deck, (i * 100) / #to_reshuffle, 'back', true, card)
-                end
-                G.deck:shuffle('reb4l_black_' .. G.GAME.hands_played .. '_' .. (G.GAME.current_round.discards_left or 0))
-                return true
-            end
-        }))
-    end
+    return reb4l_orig_calculate_context(ctx)
 end
 
 local reb4l_orig_level_up_hand = level_up_hand
