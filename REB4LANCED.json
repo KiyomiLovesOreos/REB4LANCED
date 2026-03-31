@@ -3,7 +3,7 @@
   "name": "REB4LANCED",
   "display_name": "REB4LANCED",
   "author": ["Amo"],
-  "description": "R",
+  "description": "A vanilla ''rebalance'' mod, that is made to be fully configurable, and allowing to turn off or edit every feature.",
   "prefix": "reb4l",
   "main_file": "REB4LANCED.lua",
   "priority": 0,
