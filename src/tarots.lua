@@ -127,6 +127,7 @@ SMODS.Consumable:take_ownership('world', {
 end -- REB4LANCED.config.tarot_suit_enhanced
 
 -- The Wheel of Fortune: 1/3 chance to apply edition
+if REB4LANCED.config.wheel_of_fortune_enhanced then
 SMODS.Consumable:take_ownership('wheel_of_fortune', {
     config = { extra = { odds = 3 } },
     loc_vars = function(self, info_queue, card)
@@ -177,3 +178,4 @@ SMODS.Consumable:take_ownership('wheel_of_fortune', {
         return next(SMODS.Edition:get_edition_cards(G.jokers, true))
     end,
 }, false)
+end -- REB4LANCED.config.wheel_of_fortune_enhanced

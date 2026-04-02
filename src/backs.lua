@@ -1,8 +1,9 @@
--- Only the 3 decks that have REB4LANCED-specific behavior get take_ownership.
+-- Only the decks that have REB4LANCED-specific behavior get take_ownership.
 -- Keys use the vanilla identifier WITHOUT the 'b_' class prefix.
 
 -- Abandoned Deck: face cards cannot appear anywhere (packs, shop, Strength tarot, etc.)
 -- Card replacement is handled by the Card:set_base wrapper in overrides.lua.
+if REB4LANCED.config.abandoned_enhanced then
 SMODS.Back:take_ownership('abandoned', {
     loc_txt = {
         name = "Abandoned Deck",
@@ -15,9 +16,11 @@ SMODS.Back:take_ownership('abandoned', {
         G.GAME.reb4l_deck = 'abandoned'
     end,
 }, false)
+end
 
 -- Checkered Deck: Diamonds/Clubs cannot appear anywhere; converts starting deck on apply
 -- Ongoing card replacement is handled by the Card:set_base wrapper in overrides.lua.
+if REB4LANCED.config.checkered_enhanced then
 SMODS.Back:take_ownership('checkered', {
     loc_txt = {
         name = "Checkered Deck",
@@ -42,9 +45,11 @@ SMODS.Back:take_ownership('checkered', {
         }))
     end,
 }, false)
+end
 
 -- Anaglyph Deck: sets flag for the add_tag doubling override
 -- Vanilla already gives Double Tag after each boss blind — we only add the doubling behaviour
+if REB4LANCED.config.anaglyph_enhanced then
 SMODS.Back:take_ownership('anaglyph', {
     loc_txt = {
         name = "Anaglyph Deck",
@@ -59,23 +64,37 @@ SMODS.Back:take_ownership('anaglyph', {
         G.GAME.reb4l_anaglyph_active = true
     end,
 }, false)
+end
 
--- Painted Deck: -1 hand per round instead of -1 joker slot (joker_size patched in patches.lua)
+-- Painted Deck: -1 hand or -1 discard per round instead of -1 joker slot (joker_size patched in patches.lua)
+-- painted_mode: 1=Vanilla, 2=-1 Hand/Round, 3=-1 Discard/Round
+if REB4LANCED.config.painted_mode and REB4LANCED.config.painted_mode > 1 then
 SMODS.Back:take_ownership('painted', {
     loc_txt = {
         name = "Painted Deck",
         text = {
             "Start with {C:attention}+2{} hand size,",
-            "{C:blue}-1{} hand per round",
+            "{C:blue}-1{} {C:attention}#1#{} per round",
         },
     },
+    loc_vars = function(self, info_queue)
+        local mode = REB4LANCED.config.painted_mode or 2
+        return { vars = { mode == 3 and 'discard' or 'hand' } }
+    end,
     apply = function(self, back)
-        G.GAME.round_resets.hands = G.GAME.round_resets.hands - 1
+        local mode = REB4LANCED.config.painted_mode or 2
+        if mode == 3 then
+            G.GAME.round_resets.discards = G.GAME.round_resets.discards - 1
+        else
+            G.GAME.round_resets.hands = G.GAME.round_resets.hands - 1
+        end
     end,
 }, false)
+end
 
 -- Nebula Deck: remove -1 consumable slot penalty (consumeable_size patched in patches.lua)
 -- Vanilla apply still runs, giving the Telescope voucher. No other effect.
+if REB4LANCED.config.nebula_enhanced then
 SMODS.Back:take_ownership('nebula', {
     loc_txt = {
         name = "Nebula Deck",
@@ -84,3 +103,4 @@ SMODS.Back:take_ownership('nebula', {
         },
     },
 }, false)
+end

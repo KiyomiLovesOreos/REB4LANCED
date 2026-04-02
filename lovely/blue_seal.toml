@@ -1,0 +1,21 @@
+[manifest]
+version = "1.0.0"
+dump_lua = true
+priority = -1
+
+# Blue Seal: disable vanilla hardcoded check in card.lua when our enhancement is active.
+# SMODS take_ownership adds our calculate to the SMODS context pipeline, but the vanilla
+# hardcoded 'if self.seal == 'Blue'' check in card.lua still fires independently, causing
+# double-triggers. We gate it out only when REB4LANCED.config.blue_seal_enhanced is true
+# so vanilla behaviour is preserved when the toggle is off.
+[[patches]]
+[patches.pattern]
+target = "card.lua"
+pattern = '''
+if self.seal == 'Blue' and #G.consumeables.cards + G.GAME.consumeable_buffer < G.consumeables.config.card_limit and not self.ability.extra_enhancement then
+'''
+position = "at"
+payload = '''
+if (not REB4LANCED or not REB4LANCED.config or not REB4LANCED.config.blue_seal_enhanced) and self.seal == 'Blue' and #G.consumeables.cards + G.GAME.consumeable_buffer < G.consumeables.config.card_limit and not self.ability.extra_enhancement then
+'''
+match_indent = true

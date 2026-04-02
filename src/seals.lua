@@ -1,5 +1,6 @@
 -- Blue Seal: probability scales with last played hand size (hand_size/5 chance)
 -- e.g. Pair=2/5, Two Pair=4/5, Flush=5/5 (guaranteed)
+if REB4LANCED.config.blue_seal_enhanced then
 SMODS.Seal:take_ownership('Blue', {
     config = { extra = { odds = 5 } },
     loc_txt = {
@@ -49,3 +50,4 @@ SMODS.Seal:take_ownership('Blue', {
         end
     end,
 }, false)
+end

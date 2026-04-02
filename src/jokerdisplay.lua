@@ -9,23 +9,33 @@ if not JokerDisplay then return end
 
 -- ─── Drunkard ─────────────────────────────────────────────────────────────────
 -- Gives +1 discard on entering blind; show count with round indicator.
+-- Uses calc_function so Blueprint/Brainstorm copies display correctly.
 JokerDisplay.Definitions["j_drunkard"] = {
     reminder_text = {
         { text = "(" },
-        { ref_table = "card.ability.extra", ref_value = "discards" },
+        { ref_table = "card.joker_display_values", ref_value = "discards" },
         { text = " / blind)", colour = G.C.UI.TEXT_INACTIVE },
     },
+    calc_function = function(card)
+        card.joker_display_values.discards =
+            (type(card.ability.extra) == "table" and card.ability.extra.discards) or 1
+    end,
 }
 
 -- ─── Merry Andy ───────────────────────────────────────────────────────────────
 -- Gives +3 discards and -1 hand on entering blind; show counts.
+-- Uses calc_function so Blueprint/Brainstorm copies display correctly.
 JokerDisplay.Definitions["j_merry_andy"] = {
     reminder_text = {
         { text = "(" },
-        { text = "+",                                                  colour = G.C.RED },
-        { ref_table = "card.ability.extra",  ref_value = "discards",  colour = G.C.RED },
+        { text = "+",                                                             colour = G.C.RED },
+        { ref_table = "card.joker_display_values", ref_value = "discards",        colour = G.C.RED },
         { text = " Disc / blind | -1 Hand Size)", colour = G.C.UI.TEXT_INACTIVE },
     },
+    calc_function = function(card)
+        card.joker_display_values.discards =
+            (type(card.ability.extra) == "table" and card.ability.extra.discards) or 3
+    end,
 }
 
 -- ─── Satellite ────────────────────────────────────────────────────────────────
@@ -42,7 +52,9 @@ JokerDisplay.Definitions["j_satellite"] = {
     calc_function = function(card)
         local highest = 0
         for _, hand in pairs(G.GAME and G.GAME.hands or {}) do
-            if hand.level > highest then highest = hand.level end
+            local lv = type(hand.level) == 'number' and hand.level
+                or tonumber(tostring(hand.level)) or 0
+            if lv > highest then highest = lv end
         end
         card.joker_display_values.dollars = math.ceil(highest / 2)
         card.joker_display_values.localized_text = "(" .. localize("k_round") .. ")"
@@ -139,7 +151,7 @@ JokerDisplay.Definitions["j_8_ball"] = {
             end
         end
         card.joker_display_values.count = count
-        local odds = type(card.ability.extra) == "number" and card.ability.extra or 2
+        local odds = type(card.ability.extra) == "number" and card.ability.extra or 3
         local numerator, denominator = SMODS.get_probability_vars(card, 1, odds, "8ball")
         card.joker_display_values.odds = localize {
             type = "variable", key = "jdis_odds", vars = { numerator, denominator },
@@ -212,7 +224,8 @@ JokerDisplay.Definitions["j_hanging_chad"] = {
 }
 
 -- ─── The Idol ────────────────────────────────────────────────────────────────
--- reb4l_idol_card mirrors vanilla idol_card; xmult is card.ability.extra (bare number).
+-- Mode 1/2: reb4l_idol_card mirrors vanilla idol_card (rotating each round).
+-- Mode 3: per-card fixed rank/suit stored in card.ability.reb4l_idol_rank/suit/id.
 JokerDisplay.Definitions["j_idol"] = {
     text = {
         {
@@ -228,8 +241,17 @@ JokerDisplay.Definitions["j_idol"] = {
         { text = ")" },
     },
     calc_function = function(card)
-        local idol = (G.GAME and G.GAME.current_round and G.GAME.current_round.reb4l_idol_card)
-            or { rank = "Ace", suit = "Spades", id = 14 }
+        local idol
+        if REB4LANCED.config.idol_mode == 3 and card.ability.reb4l_idol_rank then
+            idol = {
+                rank = card.ability.reb4l_idol_rank,
+                suit = card.ability.reb4l_idol_suit,
+                id   = card.ability.reb4l_idol_id,
+            }
+        else
+            idol = (G.GAME and G.GAME.current_round and G.GAME.current_round.reb4l_idol_card)
+                or { rank = "Ace", suit = "Spades", id = 14 }
+        end
         local count = 0
         local text, _, scoring_hand = JokerDisplay.evaluate_hand()
         if text ~= "Unknown" then
@@ -248,10 +270,15 @@ JokerDisplay.Definitions["j_idol"] = {
         }
     end,
     style_function = function(card, text, reminder_text, extra)
-        local idol = G.GAME and G.GAME.current_round and G.GAME.current_round.reb4l_idol_card
-            or { suit = "Spades" }
+        local suit
+        if REB4LANCED.config.idol_mode == 3 and card.ability.reb4l_idol_suit then
+            suit = card.ability.reb4l_idol_suit
+        else
+            local idol = G.GAME and G.GAME.current_round and G.GAME.current_round.reb4l_idol_card
+            suit = idol and idol.suit or "Spades"
+        end
         if reminder_text and reminder_text.children and reminder_text.children[2] then
-            reminder_text.children[2].config.colour = lighten(G.C.SUITS[idol.suit], 0.35)
+            reminder_text.children[2].config.colour = lighten(G.C.SUITS[suit], 0.35)
         end
     end,
 }
@@ -368,13 +395,13 @@ if REB4LANCED.config.diet_cola_enhanced then
 end
 
 -- ─── Constellation ────────────────────────────────────────────────────────────
--- Xmult stored in card.ability.extra.Xmult (vanilla used card.ability.x_mult).
+-- Xmult stored in card.ability.extra (bare number; vanilla used card.ability.x_mult).
 JokerDisplay.Definitions["j_constellation"] = {
     text = {
         {
             border_nodes = {
                 { text = "X" },
-                { ref_table = "card.ability.extra", ref_value = "Xmult", retrigger_type = "exp" },
+                { ref_table = "card.ability", ref_value = "extra", retrigger_type = "exp" },
             },
         },
     },
@@ -624,8 +651,7 @@ JokerDisplay.Definitions["j_seeing_double"] = {
 }
 
 -- ─── Driver's License ─────────────────────────────────────────────────────────
--- Activation threshold lowered from 16 to 12 enhanced cards.
--- Vanilla reminder text hardcodes "/16"; this override reads driver_amount dynamically.
+-- X4 Mult at 16 enhanced cards (vanilla: X3 at 16).
 JokerDisplay.Definitions["j_drivers_license"] = {
     text = {
         {
@@ -649,15 +675,15 @@ JokerDisplay.Definitions["j_drivers_license"] = {
                 count = count + 1
             end
         end
-        local xmult = type(card.ability.extra) == "number" and card.ability.extra or 3
+        local xmult = type(card.ability.extra) == "number" and card.ability.extra or 4
         card.joker_display_values.count     = count
-        card.joker_display_values.threshold = 12
-        card.joker_display_values.xmult     = count >= 12 and xmult or 1
+        card.joker_display_values.threshold = 16
+        card.joker_display_values.xmult     = count >= 16 and xmult or 1
     end,
     style_function = function(card, text, reminder_text, extra)
         if reminder_text and reminder_text.children then
             local count = card.joker_display_values.count or 0
-            local colour = count >= 12 and G.C.GREEN or G.C.UI.TEXT_INACTIVE
+            local colour = count >= 16 and G.C.GREEN or G.C.UI.TEXT_INACTIVE
             for _, child in ipairs(reminder_text.children) do
                 if child.config then child.config.colour = colour end
             end

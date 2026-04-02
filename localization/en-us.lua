@@ -16,34 +16,35 @@ return {
             },
             stake_black = {
                 text = {
-                    "{C:attention}Discarded{} cards are",
-                    "{C:attention}reshuffled{} into the deck",
+                    "{C:attention}Reroll{} cost scales by",
+                    "{C:money}$2{} per reroll instead of {C:money}$1",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
             stake_blue = {
                 text = {
-                    "Win Ante: {C:attention}10",
+                    "{C:attention}Interest{} is earned at",
+                    "{C:money}$1{} per {C:money}$7{} held",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
             stake_purple = {
-                text = {
-                    "Shop can have {C:attention}Perishable{} Jokers",
-                    "{C:inactive,s:0.8}(Expires after {C:attention,s:0.8}5{C:inactive,s:0.8} rounds)",
-                    "{s:0.8}Applies all previous Stakes",
-                },
-            },
-            stake_orange = {
                 text = {
                     "Shop can have {C:attention}Rental{} Jokers",
                     "{C:inactive,s:0.8}(Costs {C:money,s:0.8}$3{C:inactive,s:0.8} per round)",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
+            stake_orange = {
+                text = {
+                    "Shop can have {C:attention}Perishable{} Jokers",
+                    "{C:inactive,s:0.8}(Expires after {C:attention,s:0.8}6{C:inactive,s:0.8} rounds)",
+                    "{s:0.8}Applies all previous Stakes",
+                },
+            },
             stake_gold = {
                 text = {
-                    "{C:attention}Showdown{} Boss Blinds every {C:attention}5{} Antes",
+                    "{C:attention}Showdown{} Boss Blinds every {C:attention}4{} Antes",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },

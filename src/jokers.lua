@@ -18,7 +18,9 @@ SMODS.Joker:take_ownership('satellite', {
     loc_vars = function(self, info_queue, card)
         local highest = 0
         for _, hand in pairs(G.GAME and G.GAME.hands or {}) do
-            if hand.level > highest then highest = hand.level end
+            local lv = type(hand.level) == 'number' and hand.level
+                or tonumber(tostring(hand.level)) or 0
+            if lv > highest then highest = lv end
         end
         return { vars = { card.ability.extra, math.ceil(highest / 2) } }
     end,
@@ -26,7 +28,9 @@ SMODS.Joker:take_ownership('satellite', {
         if card.debuff then return end
         local highest = 0
         for _, hand in pairs(G.GAME.hands) do
-            if hand.level > highest then highest = hand.level end
+            local lv = type(hand.level) == 'number' and hand.level
+                or tonumber(tostring(hand.level)) or 0
+            if lv > highest then highest = lv end
         end
         local amount = math.ceil(highest / 2)
         if amount > 0 then return amount end
@@ -54,6 +58,7 @@ SMODS.Joker:take_ownership('satellite', {
 end
 
 -- Flower Pot: each scoring Wild Card gives +15 Chips (stacking per wild)
+if REB4LANCED.config.flower_pot_enhanced then
 SMODS.Joker:take_ownership('flower_pot', {
     config = { extra = 15 },
     loc_txt = {
@@ -82,6 +87,7 @@ SMODS.Joker:take_ownership('flower_pot', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.flower_pot_enhanced
 
 -- Delayed Gratification: mode-selectable rework
 -- Mode 1 (Vanilla): $2 per unused discard if no discards used this round
@@ -89,7 +95,7 @@ SMODS.Joker:take_ownership('flower_pot', {
 -- Mode 3: $4 per unused discard if no discards used this round
 if REB4LANCED.config.delayed_grat_mode and REB4LANCED.config.delayed_grat_mode ~= 1 then
 local _mode = REB4LANCED.config.delayed_grat_mode
-SMODS.Joker:take_ownership('delayed_gratification', {
+SMODS.Joker:take_ownership('delayed_grat', {
     loc_txt = {
         name = 'Delayed Gratification',
         text = (_mode == 2) and {
@@ -118,6 +124,7 @@ end
 -- We block vanilla's joker_main dispatch (return nil, true) and apply xmult per individual card.
 -- Vanilla's calculate_joker checks obj.calculate first; returning a truthy second value prevents
 -- the vanilla branch from running while producing no effect itself.
+if REB4LANCED.config.seeing_double_enhanced then
 SMODS.Joker:take_ownership('seeing_double', {
     config = { extra = 1.25 },
     loc_txt = {
@@ -148,6 +155,7 @@ SMODS.Joker:take_ownership('seeing_double', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.seeing_double_enhanced
 
 -- Smeared Joker: add description note that suit-based boss debuffs are also ignored
 -- (behavior is implemented in overrides.lua Card:is_suit)
@@ -184,7 +192,7 @@ end
 
 -- Mail-In Rebate: Uncommon (vanilla: Common)
 if REB4LANCED.config.mail_rebate_enhanced then
-SMODS.Joker:take_ownership('mail_in_rebate', {
+SMODS.Joker:take_ownership('mail', {
     rarity = 2,
 }, false)
 end
@@ -196,14 +204,16 @@ SMODS.Joker:take_ownership('marble', {
 }, false)
 end
 
--- Golden Ticket: Uncommon (vanilla: Common)
+-- Golden Ticket: Uncommon, $5 per Gold Card scored (vanilla: Common, $4)
 if REB4LANCED.config.ticket_enhanced then
 SMODS.Joker:take_ownership('ticket', {
     rarity = 2,
+    config = { extra = { dollars = 5 } },
 }, false)
 end
 
 -- Mad Joker: +10 Mult for Two Pair (vanilla: +8)
+if REB4LANCED.config.mad_enhanced then
 SMODS.Joker:take_ownership('mad', {
     config = { extra = { t_mult = 10, type = 'Two Pair' } },
     loc_vars = function(self, info_queue, card)
@@ -215,8 +225,10 @@ SMODS.Joker:take_ownership('mad', {
         end
     end,
 }, false)
+end
 
 -- Crazy Joker: +18 Mult for Straight (vanilla: +12)
+if REB4LANCED.config.crazy_enhanced then
 SMODS.Joker:take_ownership('crazy', {
     config = { extra = { t_mult = 18, type = 'Straight' } },
     loc_vars = function(self, info_queue, card)
@@ -228,8 +240,10 @@ SMODS.Joker:take_ownership('crazy', {
         end
     end,
 }, false)
+end
 
 -- Droll Joker: +15 Mult for Flush (vanilla: +10)
+if REB4LANCED.config.droll_enhanced then
 SMODS.Joker:take_ownership('droll', {
     config = { extra = { t_mult = 15, type = 'Flush' } },
     loc_vars = function(self, info_queue, card)
@@ -241,20 +255,23 @@ SMODS.Joker:take_ownership('droll', {
         end
     end,
 }, false)
+end
 
--- 8 Ball: 1/2 chance per 8 scored (vanilla: 1/4)
+-- 8 Ball: 1/3 chance per 8 scored (vanilla: 1/4)
 -- Vanilla's card.lua dispatch reads self.ability.extra as the denominator via
 -- SMODS.pseudorandom_probability(self, '8ball', 1, self.ability.extra).
 -- We only change config.extra; vanilla handles the rest.
 -- add_to_deck migrates old saves where ability.extra was incorrectly set to a table.
+if REB4LANCED.config.eight_ball_enhanced then
 SMODS.Joker:take_ownership('8_ball', {
-    config = { extra = 2 },
+    config = { extra = 3 },
     add_to_deck = function(self, card, from_debuff)
         if type(card.ability.extra) ~= 'number' then
             card.ability.extra = self.config.extra
         end
     end,
 }, false)
+end
 
 -- Bloodstone: 1/3 for X2 Mult on scoring Hearts card (vanilla: 1/2 for X1.5)
 if REB4LANCED.config.bloodstone_enhanced then
@@ -275,6 +292,7 @@ SMODS.Joker:take_ownership('bloodstone', {
 end
 
 -- Hanging Chad: Uncommon/$6, retriggers first scoring card 2 times
+if REB4LANCED.config.hanging_chad_enhanced then
 SMODS.Joker:take_ownership('hanging_chad', {
     rarity = 2,
     cost = 6,
@@ -294,20 +312,104 @@ SMODS.Joker:take_ownership('hanging_chad', {
         end
     end,
 }, false)
+end
 
--- The Idol: configurable Uncommon/$6/X2 (vanilla) or Rare/$8/X2.5 (default enhanced)
--- Vanilla's dispatch reads self.ability.extra as bare xmult and fires per scored idol card.
--- reb4l_idol_card mirrors vanilla's idol_card so jokerdisplay can reference it.
+-- The Idol
+-- Mode 1: Vanilla (Uncommon/$6/X2, rank+suit rotates each round)
+-- Mode 2: Rare/$8/X2.5, rank+suit rotates each round
+-- Mode 3: Uncommon/$6/X2, rank+suit fixed per card on first generation
+-- reb4l_idol_card mirrors vanilla's idol_card each round; used by modes 1+2.
+
+-- Helper: generate and store a fixed rank/suit on the card (mode 3 only).
+-- Safe to call multiple times; no-ops if already set.
+local function reb4l_idol3_generate(card)
+    if card.ability.reb4l_idol_rank then return end
+    local rank, suit, id
+    if G.playing_cards and #G.playing_cards > 0 then
+        local valid = {}
+        for _, c in ipairs(G.playing_cards) do
+            if not SMODS.has_no_suit(c) and not SMODS.has_no_rank(c) then
+                valid[#valid + 1] = c
+            end
+        end
+        if #valid > 0 then
+            local picked = valid[math.random(#valid)]
+            rank = picked.base.value
+            suit = picked.base.suit
+            id   = picked.base.id
+        end
+    end
+    if not rank then
+        -- Fallback when outside a run (e.g. collection screen)
+        local ranks = {'2','3','4','5','6','7','8','9','10','Jack','Queen','King','Ace'}
+        local suits = {'Spades','Hearts','Clubs','Diamonds'}
+        local ids   = {['2']=2,['3']=3,['4']=4,['5']=5,['6']=6,['7']=7,['8']=8,['9']=9,
+                       ['10']=10,Jack=11,Queen=12,King=13,Ace=14}
+        rank = ranks[math.random(#ranks)]
+        suit = suits[math.random(#suits)]
+        id   = ids[rank]
+    end
+    card.ability.reb4l_idol_rank = rank
+    card.ability.reb4l_idol_suit = suit
+    card.ability.reb4l_idol_id   = id
+end
+
+if REB4LANCED.config.idol_mode == 2 then
 SMODS.Joker:take_ownership('idol', {
-    rarity = REB4LANCED.config.idol_enhanced and 3 or 2,
-    cost   = REB4LANCED.config.idol_enhanced and 8 or 6,
-    config = { extra = REB4LANCED.config.idol_enhanced and 2.5 or 2 },
+    rarity = 3,
+    cost   = 8,
+    config = { extra = 2.5 },
     add_to_deck = function(self, card, from_debuff)
         if type(card.ability.extra) ~= 'number' then
             card.ability.extra = self.config.extra
         end
     end,
 }, false)
+end
+
+if REB4LANCED.config.idol_mode == 3 then
+SMODS.Joker:take_ownership('idol', {
+    -- Vanilla rarity/cost/xmult unchanged.
+    -- Rank and suit are fixed per card, stored in ability.reb4l_idol_rank/suit/id.
+    loc_txt = {
+        name = 'The Idol',
+        text = {
+            '{X:mult,C:white} X#1# {} Mult for each',
+            'scored {C:attention}#2#{} of {C:attention}#3#{}',
+        },
+    },
+    set_ability = function(self, card, initial, delay_sprites)
+        if initial then reb4l_idol3_generate(card) end
+    end,
+    add_to_deck = function(self, card, from_debuff)
+        reb4l_idol3_generate(card)  -- backup if set_ability ran outside a run
+    end,
+    loc_vars = function(self, info_queue, card)
+        reb4l_idol3_generate(card)  -- lazy init when hovered in shop
+        local rank = card.ability.reb4l_idol_rank or 'Ace'
+        local suit = card.ability.reb4l_idol_suit or 'Spades'
+        local xmult = type(card.ability.extra) == 'number' and card.ability.extra or 2
+        return { vars = {
+            xmult,
+            localize(rank, 'ranks'),
+            localize(suit, 'suits_plural'),
+            colours = { G.C.SUITS[suit] },
+        }}
+    end,
+    calculate = function(self, card, context)
+        if context.individual and context.cardarea == G.play then
+            local rank = card.ability.reb4l_idol_rank or 'Ace'
+            local suit = card.ability.reb4l_idol_suit or 'Spades'
+            local id   = card.ability.reb4l_idol_id   or 14
+            local xmult = type(card.ability.extra) == 'number' and card.ability.extra or 2
+            if context.other_card:get_id() and context.other_card:get_id() == id
+               and context.other_card:is_suit(suit) then
+                return { xmult = xmult }
+            end
+        end
+    end,
+}, false)
+end
 
 -- Mirror vanilla's idol_card into reb4l_idol_card each round for jokerdisplay.
 -- Vanilla's reset_game_globals runs first, so idol_card is already set when this runs.
@@ -319,27 +421,50 @@ end
 -- Baron: Uncommon (vanilla: Rare) — see src/patches.lua
 -- Mail-in Rebate: Uncommon (vanilla: Common) — see src/patches.lua
 
--- Chicot mode 2: reduces boss blind chip requirement by 33% (no blind disable)
+-- Chicot mode 2: reduces all blind chip requirements by 33%, Blueprint/Brainstorm copyable
 if REB4LANCED.config.chicot_mode == 2 then
 SMODS.Joker:take_ownership('chicot', {
+    blueprint_compat = true,
     loc_txt = {
         name = 'Chicot',
         text = {
-            '{C:attention}Boss Blind{} chip',
-            'requirement reduced by {C:attention}33%',
+            'When entering a {C:attention}Blind{},',
+            'chip requirement reduced by {C:attention}33%',
         },
     },
     calculate = function(self, card, context)
-        if context.setting_blind and context.blind.boss and not context.blueprint then
-            G.E_MANAGER:add_event(Event({
-                func = function()
-                    G.GAME.blind.chips = math.ceil(G.GAME.blind.chips * (2 / 3))
-                    G.GAME.blind.chip_text = number_format(G.GAME.blind.chips)
-                    if G.HUD_blind then G.HUD_blind:recalculate() end
-                    return true
+        if context.setting_blind then
+            -- Only the first non-debuffed Chicot in the joker area drives the events.
+            -- It queues one reduction event *per Chicot* in order, so each event reads
+            -- the value already reduced by the previous one (true diminishing returns).
+            -- Other Chicots bail out here to avoid queuing duplicate events.
+            if G.jokers then
+                for _, joker in ipairs(G.jokers.cards) do
+                    if joker.config.center.key == 'j_chicot' and not joker.debuff then
+                        if joker ~= card then return nil end
+                        break
+                    end
                 end
-            }))
-            return nil, true  -- block vanilla's blind:disable()
+            end
+            local count = 0
+            if G.jokers then
+                for _, joker in ipairs(G.jokers.cards) do
+                    if joker.config.center.key == 'j_chicot' and not joker.debuff then
+                        count = count + 1
+                    end
+                end
+            end
+            for _ = 1, count do
+                G.E_MANAGER:add_event(Event({
+                    func = function()
+                        G.GAME.blind.chips = math.ceil(G.GAME.blind.chips * (2 / 3))
+                        G.GAME.blind.chip_text = number_format(G.GAME.blind.chips)
+                        if G.HUD_blind then G.HUD_blind:recalculate() end
+                        return true
+                    end
+                }))
+            end
+            return nil
         end
     end,
 }, false)
@@ -362,7 +487,7 @@ SMODS.Joker:take_ownership('chicot', {
     end,
     calculate = function(self, card, context)
         if context.setting_blind then
-            return nil, true  -- block vanilla's blind:disable()
+            return nil
         end
         if context.end_of_round and context.game_over == false and context.main_eval
             and context.beat_boss and not context.blueprint then
@@ -390,6 +515,7 @@ end
 
 -- Space Joker: 1/3 chance (vanilla: 1/4)
 -- Vanilla's dispatch reads self.ability.extra as the bare odds denominator.
+if REB4LANCED.config.space_joker_enhanced then
 SMODS.Joker:take_ownership('space', {
     config = { extra = 3 },
     add_to_deck = function(self, card, from_debuff)
@@ -398,9 +524,11 @@ SMODS.Joker:take_ownership('space', {
         end
     end,
 }, false)
+end
 
 -- Vagabond: triggers at $8 or less (vanilla: $4 or less)
 -- Vanilla's dispatch reads self.ability.extra as the bare dollar threshold.
+if REB4LANCED.config.vagabond_enhanced then
 SMODS.Joker:take_ownership('vagabond', {
     config = { extra = 8 },
     add_to_deck = function(self, card, from_debuff)
@@ -409,9 +537,11 @@ SMODS.Joker:take_ownership('vagabond', {
         end
     end,
 }, false)
+end
 
 -- Madness: xmult_gain +0.75 per blind (vanilla: +0.5)
 -- Vanilla's dispatch reads self.ability.extra as bare xmult_gain; current xmult in ability.x_mult.
+if REB4LANCED.config.madness_enhanced then
 SMODS.Joker:take_ownership('madness', {
     config = { extra = 0.75 },
     add_to_deck = function(self, card, from_debuff)
@@ -421,8 +551,10 @@ SMODS.Joker:take_ownership('madness', {
         end
     end,
 }, false)
+end
 
 -- Rocket: starts at $2, +$2 per boss (vanilla: $1, +$2)
+if REB4LANCED.config.rocket_enhanced then
 SMODS.Joker:take_ownership('rocket', {
     config = { extra = { dollars = 2, increase = 2 } },
     loc_vars = function(self, info_queue, card)
@@ -438,9 +570,13 @@ SMODS.Joker:take_ownership('rocket', {
         return card.ability.extra.dollars
     end,
 }, false)
+end
 
 -- Hit the Road: xmult_gain +0.75 per Jack (vanilla: +0.5); resets end of round; Jacks reshuffled into deck
-local reb4l_htr_jacks = {}
+-- REB4LANCED.htr_jacks is a shared table (accessible from overrides.lua) so the
+-- draw_from_deck_to_hand wrapper can process it after cards reach G.discard.
+REB4LANCED.htr_jacks = REB4LANCED.htr_jacks or {}
+if REB4LANCED.config.hit_the_road_enhanced then
 SMODS.Joker:take_ownership('hit_the_road', {
     config = { extra = { xmult_gain = 0.75, xmult = 1 } },
     loc_txt = {
@@ -462,24 +598,9 @@ SMODS.Joker:take_ownership('hit_the_road', {
             for _, c in ipairs(context.full_hand) do
                 if not c.debuff and c:get_id() == 11 then
                     -- use card id as key to avoid double-adding if Blueprinted
-                    reb4l_htr_jacks[c.unique_val or c] = c
+                    REB4LANCED.htr_jacks[c.unique_val or c] = c
                 end
             end
-            local jacks_list = {}
-            for _, jc in pairs(reb4l_htr_jacks) do jacks_list[#jacks_list + 1] = jc end
-            G.E_MANAGER:add_event(Event({
-                trigger = 'after',
-                blocking = true,
-                blockable = true,
-                func = function()
-                    for i, jack_card in ipairs(jacks_list) do
-                        draw_card(G.discard, G.deck, (i * 100) / #jacks_list, 'up', true, jack_card)
-                    end
-                    reb4l_htr_jacks = {}
-                    G.deck:shuffle('reb4l_htr_' .. G.GAME.hands_played .. '_' .. G.GAME.current_round.discards_left)
-                    return true
-                end
-            }))
         end
         if context.discard and not context.other_card.debuff and context.other_card:get_id() == 11 then
             card.ability.extra.xmult = card.ability.extra.xmult + card.ability.extra.xmult_gain
@@ -498,6 +619,7 @@ SMODS.Joker:take_ownership('hit_the_road', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.hit_the_road_enhanced
 
 -- Diet Cola: Double Tag at end of round (3 uses), then self-destructs (vanilla: Double Tag on sell)
 if REB4LANCED.config.diet_cola_enhanced then
@@ -545,28 +667,40 @@ end
 
 -- Constellation: gains X0.1 Mult on ANY hand level-up (planet card, Space Joker, Orbital Tag, Burnt Joker)
 -- Xmult accumulation handled in overrides.lua level_up_hand; here we just apply joker_main
+if REB4LANCED.config.constellation_enhanced then
 SMODS.Joker:take_ownership('constellation', {
-    config = { extra = { Xmult = 1, Xmult_mod = 0.1 } },
+    config = { extra = 1, Xmult_mod = 0.1 },
     loc_txt = {
         name = 'Constellation',
         text = {
-            'Gains {X:mult,C:white} X#1# {} Mult every',
-            'time a {C:planet}Poker Hand{}',
-            'levels up',
+            'Gains {X:mult,C:white} X#1# {} Mult every time',
+            'a {C:planet}Poker Hand{} levels up',
             '{C:inactive}(Currently {X:mult,C:white} X#2# {C:inactive} Mult)',
         },
     },
     loc_vars = function(self, info_queue, card)
-        return { vars = { card.ability.extra.Xmult_mod, card.ability.extra.Xmult } }
+        -- Migrate old save: ability.extra was {Xmult=n, Xmult_mod=0.1}
+        if type(card.ability.extra) == 'table' then
+            card.ability.Xmult_mod = card.ability.extra.Xmult_mod or 0.1
+            card.ability.extra = card.ability.extra.Xmult or 1
+        end
+        return { vars = { card.ability.Xmult_mod, card.ability.extra } }
     end,
     calculate = function(self, card, context)
+        -- Migrate old save: ability.extra was {Xmult=n, Xmult_mod=0.1}
+        if type(card.ability.extra) == 'table' then
+            card.ability.Xmult_mod = card.ability.extra.Xmult_mod or 0.1
+            card.ability.extra = card.ability.extra.Xmult or 1
+        end
         if context.joker_main then
-            return { xmult = card.ability.extra.Xmult }
+            return { xmult = card.ability.extra }
         end
     end,
 }, false)
+end -- REB4LANCED.config.constellation_enhanced
 
 -- Splash: every played card counts in scoring; debuffs cleared before hand scores
+if REB4LANCED.config.splash_enhanced then
 SMODS.Joker:take_ownership('splash', {
     loc_txt = {
         name = 'Splash',
@@ -588,8 +722,10 @@ SMODS.Joker:take_ownership('splash', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.splash_enhanced
 
 -- Superposition: generates The Fool if straight + ace in full played hand (Four Fingers synergy)
+if REB4LANCED.config.superposition_enhanced then
 SMODS.Joker:take_ownership('superposition', {
     loc_txt = {
         name = 'Superposition',
@@ -624,8 +760,10 @@ SMODS.Joker:take_ownership('superposition', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.superposition_enhanced
 
 -- Bootstraps: scoring Hearts/Diamonds cards give +1 Mult per $5 (vanilla: +2 Mult per $5, no suit restriction)
+if REB4LANCED.config.bootstraps_enhanced then
 SMODS.Joker:take_ownership('bootstraps', {
     config = { extra = { mult = 1, dollars = 5 } },
     loc_txt = {
@@ -654,10 +792,12 @@ SMODS.Joker:take_ownership('bootstraps', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.bootstraps_enhanced
 
 -- Bull: scoring Spades/Clubs cards give +1 Chip per $5 (vanilla: +1 Chip per $1, no suit restriction)
 -- Note: vanilla card.lua does arithmetic on card.ability.extra directly (expects a number),
 -- so we don't touch config and hardcode our values instead.
+if REB4LANCED.config.bull_enhanced then
 SMODS.Joker:take_ownership('bull', {
     loc_txt = {
         name = 'Bull',
@@ -682,9 +822,10 @@ SMODS.Joker:take_ownership('bull', {
         end
     end,
 }, false)
-
+end -- REB4LANCED.config.bull_enhanced
 
 -- Erosion: X0.15 Mult for every card below 52 in deck (vanilla: +4 Mult per card below starting size)
+if REB4LANCED.config.erosion_enhanced then
 SMODS.Joker:take_ownership('erosion', {
     loc_txt = {
         name = 'Erosion',
@@ -708,10 +849,12 @@ SMODS.Joker:take_ownership('erosion', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.erosion_enhanced
 
--- Throwback: X0.5 per skipped blind (vanilla: X0.25)
+-- Throwback: X1.0 per skipped blind (vanilla: X0.25)
+if REB4LANCED.config.throwback_enhanced then
 SMODS.Joker:take_ownership('throwback', {
-    config = { extra = 0.5 },
+    config = { extra = 1.0 },
     loc_txt = {
         name = 'Throwback',
         text = {
@@ -733,9 +876,11 @@ SMODS.Joker:take_ownership('throwback', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.throwback_enhanced
 
 -- Golden Joker: $6/round, cost $8 (vanilla: $4/round, cost $6)
 -- Cost patched in src/patches.lua
+if REB4LANCED.config.golden_enhanced then
 SMODS.Joker:take_ownership('golden', {
     config = { extra = 6 },
     loc_vars = function(self, info_queue, card)
@@ -745,9 +890,11 @@ SMODS.Joker:take_ownership('golden', {
         return card.ability.extra
     end,
 }, false)
+end -- REB4LANCED.config.golden_enhanced
 
 -- Matador: $5 every hand played in any blind (vanilla: $8 when playing boss blind's required hand)
 -- Cost patched in src/patches.lua
+if REB4LANCED.config.matador_enhanced then
 SMODS.Joker:take_ownership('matador', {
     config = { extra = 5 },
     loc_txt = {
@@ -772,15 +919,17 @@ SMODS.Joker:take_ownership('matador', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.matador_enhanced
 
 -- Yorick: retriggers all played cards N times; N starts at 1, +1 every 23 hands played
+if REB4LANCED.config.yorick_enhanced then
 SMODS.Joker:take_ownership('yorick', {
     loc_txt = {
         name = 'Yorick',
         text = {
             'Retriggers all {C:attention}played cards{}',
             '{C:attention}#1#{} time(s)',
-            '{C:inactive}(+1 retrigger every {C:attention}23{} hands)',
+            '{C:inactive}(+1 retrigger every {C:attention}23{}{C:inactive} hands){}',
             '{C:inactive}(Next in {C:attention}#2#{C:inactive} hands)',
         },
     },
@@ -798,8 +947,10 @@ SMODS.Joker:take_ownership('yorick', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.yorick_enhanced
 
 -- Mr. Bones: 25% threshold; destroys rightmost joker on trigger; self-destructs if it is the rightmost
+if REB4LANCED.config.mr_bones_enhanced then
 SMODS.Joker:take_ownership('mr_bones', {
     loc_txt = {
         name = 'Mr. Bones',
@@ -808,7 +959,6 @@ SMODS.Joker:take_ownership('mr_bones', {
             'chips scored are at least',
             '{C:attention}25%{} of required chips',
             '{C:inactive}Destroys the {C:attention}rightmost Joker{}',
-            '{C:inactive}Self destructs if rightmost{}',
         },
     },
     calculate = function(self, card, context)
@@ -839,8 +989,10 @@ SMODS.Joker:take_ownership('mr_bones', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.mr_bones_enhanced
 
 -- Séance: same trigger, but creates a Negative Spectral (no consumable slot used)
+if REB4LANCED.config.seance_enhanced then
 SMODS.Joker:take_ownership('seance', {
     loc_txt = {
         name = 'Séance',
@@ -874,9 +1026,11 @@ SMODS.Joker:take_ownership('seance', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.seance_enhanced
 
 -- Campfire: gains X0.1 Mult per card sold; loses X0.25 Mult after each blind defeated
 -- Vanilla: gains xmult based on sell value; loses ALL xmult after boss blind
+if REB4LANCED.config.campfire_enhanced then
 SMODS.Joker:take_ownership('campfire', {
     config = { extra = { xmult = 1, xmult_gain = 0.1, xmult_loss = 0.25 } },
     loc_txt = {
@@ -917,10 +1071,13 @@ SMODS.Joker:take_ownership('campfire', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.campfire_enhanced
 
 -- Drunkard: +1 discard on entering blind; copyable by Blueprint/Brainstorm
 -- Vanilla fires setting_blind with `not context.blueprint`, blocking copies.
+if REB4LANCED.config.drunkard_enhanced then
 SMODS.Joker:take_ownership('drunkard', {
+    blueprint_compat = true,
     config = { extra = { discards = 1 } },
     loc_txt = {
         name = 'Drunkard',
@@ -934,43 +1091,57 @@ SMODS.Joker:take_ownership('drunkard', {
     end,
     calculate = function(self, card, context)
         if context.setting_blind then
-            ease_discard(card.ability.extra.discards)
+            ease_discard(self.config.extra.discards)
             return { message = localize('k_plus_discard'), colour = G.C.RED }
         end
     end,
 }, false)
+end -- REB4LANCED.config.drunkard_enhanced
 
--- Driver's License: activates at 12 enhanced cards (vanilla: 16)
--- config.extra is a bare number (xmult = 3); driver_amount is hardcoded in vanilla calculate
+-- Driver's License: X4 Mult at 16 enhanced cards (vanilla: X3 at 16)
+if REB4LANCED.config.drivers_license_enhanced then
 SMODS.Joker:take_ownership('drivers_license', {
+    config = { extra = 4 },
     loc_txt = {
         name = "Driver's License",
         text = {
-            'If you have {C:attention}12{}+ Enhanced',
+            'If you have atleast {C:attention}16{} Enhanced',
             'cards in your full deck,',
             '{X:mult,C:white} X#1# {} Mult',
             '{C:inactive}(Currently {C:attention}#2#{C:inactive} Enhanced)',
         },
     },
+    loc_vars = function(self, info_queue, card)
+        local enhanced_count = 0
+        for _, c in ipairs(G.playing_cards or {}) do
+            if c.config.center.set == 'Enhanced' then
+                enhanced_count = enhanced_count + 1
+            end
+        end
+        return { vars = { card.ability.extra, enhanced_count } }
+    end,
     calculate = function(self, card, context)
         if context.joker_main then
             local enhanced_count = 0
-            for _, c in ipairs(G.playing_cards) do
+            for _, c in ipairs(G.playing_cards or {}) do
                 if c.config.center.set == 'Enhanced' then
                     enhanced_count = enhanced_count + 1
                 end
             end
-            if enhanced_count >= 12 and not card.debuff then
+            if enhanced_count >= 16 and not card.debuff then
                 return { xmult = card.ability.extra }
             end
         end
     end,
 }, false)
+end -- REB4LANCED.config.drivers_license_enhanced
 
 -- Merry Andy: +3 discards and -1 hand on entering blind; copyable by Blueprint/Brainstorm
 -- config added explicitly because vanilla merry_andy does not store discards in config.extra
 -- Merry Andy: discards given on entering blind (copyable); -1 hand size is vanilla passive (not copied)
+if REB4LANCED.config.merry_andy_enhanced then
 SMODS.Joker:take_ownership('merry_andy', {
+    blueprint_compat = true,
     config = { extra = { discards = 3 } },
     loc_txt = {
         name = 'Merry Andy',
@@ -985,8 +1156,9 @@ SMODS.Joker:take_ownership('merry_andy', {
     end,
     calculate = function(self, card, context)
         if context.setting_blind then
-            ease_discard(card.ability.extra.discards)
+            ease_discard(self.config.extra.discards)
             return { message = localize('k_plus_discard'), colour = G.C.RED }
         end
     end,
 }, false)
+end -- REB4LANCED.config.merry_andy_enhanced

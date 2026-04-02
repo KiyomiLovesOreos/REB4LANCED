@@ -4,21 +4,20 @@ REB4LANCED.UI = REB4LANCED.UI or {}
 
 -- Apply defaults for any missing settings
 local defaults = {
-    bloodstone_enhanced = true,    -- 1/3 for X2 instead of vanilla 1/2 for X1.5
-    idol_enhanced = true,          -- X2.5 instead of vanilla X2
-    interest_on_skip = true,       -- earn interest when skipping a blind
-    tarot_suit_enhanced = true,    -- suit tarots convert up to 4 instead of vanilla 3
-    lovers_enhanced = true,        -- The Lovers converts 2 cards instead of vanilla 1
-    tarot_enhance_enhanced = true, -- enhancement tarots affect +1 more card than vanilla
-    buffed_soul = true,            -- 1% chance in Tarot/Spectral packs
-    buffed_black_hole = true,      -- 7.5% chance in Planet packs
-    diet_cola_enhanced = true,     -- Double Tag at end of round (3 uses) instead of on sell
-    sigil_ouija_enhanced = true,   -- Sigil/Ouija: select card to choose suit/rank
-    pack_tags_enhanced = true,     -- pack tags add mega pack to next shop
-    tag_reworks_enhanced = true,   -- D6: 3 free rerolls; Orbital: 5 levels; Economy: $50; etc.
-    chicot_mode = 2,               -- 1=vanilla, 2=reduce boss blind 33%, 3=echo tags on boss defeat
+    idol_mode = 1,
+    bloodstone_enhanced = true,
+    interest_on_skip = true,
+    tarot_suit_enhanced = true,
+    lovers_enhanced = true,
+    tarot_enhance_enhanced = true,
+    buffed_black_hole = true,
+    diet_cola_enhanced = true,
+    sigil_ouija_enhanced = true,
+    pack_tags_enhanced = true,
+    tag_reworks_enhanced = true,
+    chicot_mode = 2,
     -- Joker reworks
-    satellite_mode = 2,               -- 1=vanilla, 2=end-of-round $/2-per-level, 3=immediate $1-per-level-up
+    satellite_mode = 2,
     flower_pot_enhanced = true,
     seeing_double_enhanced = true,
     constellation_enhanced = true,
@@ -72,24 +71,19 @@ local defaults = {
     abandoned_enhanced = true,
     checkered_enhanced = true,
     anaglyph_enhanced = true,
-    painted_enhanced = true,
+    painted_mode = 2,
     nebula_enhanced = true,
     -- Stake changes
-    red_stake_enhanced = true,
-    blue_stake_enhanced = true,
-    green_stake_enhanced = true,
-    black_stake_enhanced = true,
-    purple_stake_enhanced = true,
-    orange_stake_enhanced = true,
-    gold_stake_enhanced = true,
-    blind_scaling_enhanced = true,
+    stakes_enhanced = true,
     -- Boss blind changes
     wall_enhanced = true,
-    finisher_blinds_enhanced = true,
+    --finisher_blinds_enhanced = true,
     -- Tag changes
     edition_tags_enhanced = true,
     joker_tags_enhanced = true,
     coupon_tag_enhanced = true,
+    garbage_tag_enhanced = true,
+    voucher_tag_enhanced = true,
     -- Voucher changes
     hieroglyph_rework = true,
     tarot_tycoon_enhanced = true,
@@ -125,7 +119,6 @@ local categories_list = {
     { key = 'seals',        label = 'Seals'        },
     { key = 'editions',     label = 'Editions'     },
     { key = 'bosses',       label = 'Bosses'       },
-    { key = 'stakes',       label = 'Stakes'       },
     { key = 'new_content',  label = 'New Content'  },
     { key = 'misc',         label = 'Misc'         },
 }
@@ -203,7 +196,7 @@ local function get_category_options(key)
         return {
             make_cycle_box('Chicot', 'chicot_mode', { 'Vanilla', 'Reduce Blind', 'Tags' }),
             make_option_box('Bloodstone',       '1/3 for X2 Mult',                               'bloodstone_enhanced'),
-            make_option_box('The Idol',         'Rare, $8, X2.5 Mult',                           'idol_enhanced'),
+            make_cycle_box('The Idol', 'idol_mode', { 'Vanilla', 'Rare X2.5', 'Fixed Rank/Suit' }),
             make_option_box('Seeing Double',    'X1.25 per scored card',   'seeing_double_enhanced'),
             make_option_box('Flower Pot',       '+15 Chips per Wild in hand', 'flower_pot_enhanced'),
             make_cycle_box('Satellite', 'satellite_mode', { 'Vanilla', 'End of Round', 'On Level Up' }),
@@ -222,7 +215,7 @@ local function get_category_options(key)
             make_option_box('Séance',           'Creates a Negative Spectral', 'seance_enhanced'),
             make_option_box('Hit the Road',     'X0.75/Jack, reshuffled into deck', 'hit_the_road_enhanced'),
             make_option_box('Drunkard',         '+1 discard on blind, Blueprint/Brainstorm copyable', 'drunkard_enhanced'),
-            make_option_box("Driver's License", '12 enhanced cards threshold',       'drivers_license_enhanced'),
+            make_option_box("Driver's License", 'X4 Mult at 16 enhanced cards',       'drivers_license_enhanced'),
             make_option_box('Merry Andy',       '+3 discards on blind, Blueprint/Brainstorm copyable', 'merry_andy_enhanced'),
             make_option_box('Mad Joker',        '+10 Mult for Two Pair',             'mad_enhanced'),
             make_option_box('Crazy Joker',      '+18 Mult for Straight',            'crazy_enhanced'),
@@ -252,25 +245,27 @@ local function get_category_options(key)
             make_option_box('The Lovers',         'Converts 2 cards to Wild',                      'lovers_enhanced'),
             make_option_box('Enhancement Tarots', 'Chariot/Justice/Devil/Tower: 2 cards; Empress/Hierophant: 3','tarot_enhance_enhanced'),
             make_option_box('Sigil / Ouija',      'Select a card to choose suit or rank',                       'sigil_ouija_enhanced'),
-            make_option_box('Buffed Soul',        '1% chance in Tarot/Spectral packs',                         'buffed_soul'),
-            make_option_box('Buffed Black Hole',  '3% chance in Planet packs',                                 'buffed_black_hole'),
+            make_option_box('Buffed Soul',        '0.5% chance in Tarot/Spectral packs',  'buffed_soul'),
+            make_option_box('Buffed Black Hole',  '1.5% chance in Planet packs',          'buffed_black_hole'),
             make_option_box('Wheel of Fortune',   '1/3 chance to apply edition',                'wheel_of_fortune_enhanced'),
             make_option_box('Ectoplasm',          'Randomly -1 hand/-1 discard/-1 hand size', 'ectoplasm_enhanced'),
         }
     elseif key == 'tags' then
         return {
             make_option_box('Pack Tags',     'add pack to next shop', 'pack_tags_enhanced'),
-            make_option_box('Tag Reworks',   'Orbital: 5 levels; Economy: $50; D6: 3 free rerolls; and more',    'tag_reworks_enhanced'),
+            make_option_box('Tag Reworks',   'Orbital: 5 levels; Economy: $50',    'tag_reworks_enhanced'),
             make_option_box('Edition Tags',  'Foil/Holo/Polychrome/Negative Tags apply edition at purchase',      'edition_tags_enhanced'),
             make_option_box('Joker Tags',    'Uncommon/Rare Tags directly spawn a Joker',  'joker_tags_enhanced'),
             make_option_box('Coupon Tag',    'Also adds a free random booster pack',   'coupon_tag_enhanced'),
+            make_option_box('Garbage Tag',   '$2 per unused discard',               'garbage_tag_enhanced'),
+            make_option_box('Voucher Tag',   'Adds a free Voucher to the next shop', 'voucher_tag_enhanced'),
         }
     elseif key == 'decks' then
         return {
             make_option_box('Abandoned Deck',  'Face cards cannot appear',                'abandoned_enhanced'),
             make_option_box('Checkered Deck',  'Only Spades/Hearts; Clubs/Diamonds cannot appear',           'checkered_enhanced'),
             make_option_box('Anaglyph Deck',   'All tags gained are doubled (not Double Tags)',               'anaglyph_enhanced'),
-            make_option_box('Painted Deck',    '-1 hand per round instead of -1 Joker slot',                 'painted_enhanced'),
+            make_cycle_box('Painted Deck', 'painted_mode', { 'Vanilla', '-1 Hand/Round', '-1 Discard/Round' }),
             make_option_box('Nebula Deck',     'No -1 consumable slot penalty',                              'nebula_enhanced'),
         }
     elseif key == 'enhancements' then
@@ -300,21 +295,11 @@ local function get_category_options(key)
     elseif key == 'bosses' then
         return {
             make_option_box('The Wall',        '3x chips instead of 4x',                 'wall_enhanced'),
-            make_option_box('Finisher Blinds', '3x chips (Violet Vessel: 5x)',            'finisher_blinds_enhanced'),
-        }
-    elseif key == 'stakes' then
-        return {
-            make_option_box('Blind Scaling',  'Per-stake chip targets (scales with stake)',    'blind_scaling_enhanced'),
-            make_option_box('Red Stake',     '$1 less payout per blind',               'red_stake_enhanced'),
-            make_option_box('Green Stake',   'Eternal Jokers available in shop',       'green_stake_enhanced'),
-            make_option_box('Black Stake',   'Discards reshuffled into deck',          'black_stake_enhanced'),
-            make_option_box('Blue Stake',    '+2 win ante',                            'blue_stake_enhanced'),
-            make_option_box('Purple Stake',  'Perishable Jokers available in shop',    'purple_stake_enhanced'),
-            make_option_box('Orange Stake',  'Rental Jokers available in shop',        'orange_stake_enhanced'),
-            make_option_box('Gold Stake',    'Showdown Boss Blinds every 5 antes',     'gold_stake_enhanced'),
+            --make_option_box('Finisher Blinds', '3x chips (Violet Vessel: 5x)',            'finisher_blinds_enhanced'),
         }
     elseif key == 'misc' then
         return {
+            make_option_box('Stake Changes',     'All stake reworks (scaling, modifiers, reroll/interest/showdown changes)', 'stakes_enhanced'),
             make_option_box('Interest on Skip',  'Earn interest when skipping a blind',  'interest_on_skip'),
             make_option_box('Standard Packs',    '4/6/6 cards',                          'standard_packs_enhanced'),
         }
@@ -444,19 +429,36 @@ SMODS.current_mod.config_tab = function()
         }
     end
 
-    -- Right content: O node with UIBox built synchronously (no Event needed)
+    -- Right content: O node. The initial UIBox is a stub; a deferred event immediately
+    -- replaces it with one that has parent = content so it gets destroyed with the tab.
+    local stub = UIBox {
+        definition = { n = G.UIT.ROOT, config = { colour = G.C.CLEAR, minh = 0.1, minw = 0.1 }, nodes = {} },
+        config     = { offset = { x = 0, y = 0 } },
+    }
     local content_node = {
         n = G.UIT.O,
         config = {
             id          = 'reb4lContent',
-            oid         = 'reb4l_cat_jokers',  -- matches initial chosen button id
-            old_chosen  = nil,                  -- filled in after first render
-            object      = UIBox {
-                definition = build_options_panel(),
-                config     = { offset = { x = 0, y = 0 } }
-            }
+            oid         = 'reb4l_cat_jokers',
+            old_chosen  = nil,
+            object      = stub,
         }
     }
+    G.E_MANAGER:add_event(Event({
+        trigger = 'after', delay = 0,
+        func = function()
+            local ref = G.OVERLAY_MENU and G.OVERLAY_MENU:get_UIE_by_ID('reb4lContent')
+            if ref then
+                if ref.config.object then ref.config.object:remove() end
+                ref.config.object = UIBox {
+                    definition = build_options_panel(),
+                    config     = { offset = { x = 0, y = 0 }, parent = ref },
+                }
+                ref.UIBox:recalculate()
+            end
+            return true
+        end,
+    }))
 
     return {
         n = G.UIT.ROOT,

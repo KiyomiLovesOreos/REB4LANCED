@@ -1,4 +1,6 @@
 -- Hieroglyph: -1 Ante + -1 Discard (vanilla: -1 Ante + -1 Hand)
+-- Petroglyph: -1 Ante + -1 Hand (vanilla: -1 Ante + -1 Discard)
+if REB4LANCED.config.hieroglyph_rework then
 SMODS.Voucher:take_ownership('hieroglyph', {
     loc_txt = {
         name = 'Hieroglyph',
@@ -20,7 +22,6 @@ SMODS.Voucher:take_ownership('hieroglyph', {
     end,
 }, false)
 
--- Petroglyph: -1 Ante + -1 Hand (vanilla: -1 Ante + -1 Discard)
 SMODS.Voucher:take_ownership('petroglyph', {
     loc_txt = {
         name = 'Petroglyph',
@@ -41,8 +42,10 @@ SMODS.Voucher:take_ownership('petroglyph', {
         ease_hands_played(-card.ability.extra)
     end,
 }, false)
+end -- REB4LANCED.config.hieroglyph_rework
 
 -- Tarot Tycoon: every shop has a free Mega Arcana Pack
+if REB4LANCED.config.tarot_tycoon_enhanced then
 SMODS.Voucher:take_ownership('tarot_tycoon', {
     config = {},
     loc_txt = {
@@ -80,8 +83,10 @@ SMODS.Voucher:take_ownership('tarot_tycoon', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.tarot_tycoon_enhanced
 
--- Planet Tycoon: each planet card in shop has a 1/odds chance to be Negative (odds configurable)
+-- Planet Tycoon: each planet card in shop has a 1/odds chance to be Negative
+if REB4LANCED.config.planet_tycoon_enhanced then
 SMODS.Voucher:take_ownership('planet_tycoon', {
     config = { extra = { odds = 2 } },
     loc_txt = {
@@ -110,9 +115,11 @@ SMODS.Voucher:take_ownership('planet_tycoon', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.planet_tycoon_enhanced
 
 -- Magic Trick: playing cards in shop may appear with enhancements, editions, or seals
 -- (behavior in overrides.lua create_card_for_shop)
+if REB4LANCED.config.magic_trick_enhanced then
 SMODS.Voucher:take_ownership('magic_trick', {
     loc_txt = {
         name = 'Magic Trick',
@@ -124,9 +131,11 @@ SMODS.Voucher:take_ownership('magic_trick', {
         },
     },
 }, false)
+end -- REB4LANCED.config.magic_trick_enhanced
 
 -- Illusion: playing cards in shop are clones of cards in your deck
 -- (behavior in overrides.lua create_card_for_shop; no upgrade rerolls)
+if REB4LANCED.config.illusion_enhanced then
 SMODS.Voucher:take_ownership('illusion', {
     loc_txt = {
         name = 'Illusion',
@@ -137,9 +146,11 @@ SMODS.Voucher:take_ownership('illusion', {
         },
     },
 }, false)
+end -- REB4LANCED.config.illusion_enhanced
 
 -- Telescope: replace forced first-slot with 50% shop rate boost for most-played hand's planet
 -- (Celestial packs made random in boosters.lua; shop boost in overrides.lua)
+if REB4LANCED.config.telescope_enhanced then
 SMODS.Voucher:take_ownership('telescope', {
     loc_txt = {
         name = 'Telescope',
@@ -151,8 +162,10 @@ SMODS.Voucher:take_ownership('telescope', {
         },
     },
 }, false)
+end -- REB4LANCED.config.telescope_enhanced
 
 -- Observatory: X2 Mult per Planet card used (vanilla: X1.5)
+if REB4LANCED.config.observatory_enhanced then
 SMODS.Voucher:take_ownership('observatory', {
     config = { extra = { Xmult = 2 } },
     loc_txt = {
@@ -168,3 +181,4 @@ SMODS.Voucher:take_ownership('observatory', {
         return { vars = { card.ability.extra.Xmult } }
     end,
 }, false)
+end -- REB4LANCED.config.observatory_enhanced

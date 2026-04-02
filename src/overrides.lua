@@ -73,11 +73,15 @@ function add_tag(tag, ...)
 end
 
 -- Edition Tags (enhanced): apply edition to a joker at purchase time
+-- Checks next(self.edition) to treat both nil and empty-table as "no edition".
 local reb4l_orig_buy_card = Card.buy_card
 function Card:buy_card(from_area)
     local result = reb4l_orig_buy_card(self, from_area)
-    if self.ability and self.ability.set == 'Joker'
-    and not self.edition and G.GAME and G.GAME.tags then
+    if REB4LANCED.config.edition_tags_enhanced
+    and self.ability and self.ability.set == 'Joker'
+    and (not self.edition or not next(self.edition))
+    and from_area == G.shop_jokers
+    and G.GAME and G.GAME.tags then
         local edition_map = {
             tag_negative   = 'e_negative',   negative   = 'e_negative',
             tag_foil       = 'e_foil',       foil       = 'e_foil',
@@ -91,7 +95,7 @@ function Card:buy_card(from_area)
                 local joker_card = self
                 local lock = tag.ID
                 G.CONTROLLER.locks[lock] = true
-                tag:yep('+', G.C.DARK_EDITION, function()
+                tag:yep('+', G.C.EDITION, function()
                     joker_card:set_edition(edition_key, true)
                     G.CONTROLLER.locks[lock] = nil
                     return true
@@ -126,8 +130,9 @@ if REB4LANCED.config.interest_on_skip then
         local interest_base = G.GAME.interest_base or 5
         local interest_amount = G.GAME.interest_amount or 1
         local interest_cap = G.GAME.interest_cap or 25
-        if G.GAME.dollars >= 1 and not G.GAME.modifiers.no_interest then
-            local earned = interest_amount * math.min(math.floor(G.GAME.dollars / interest_base), interest_cap / interest_base)
+        local dollars = type(G.GAME.dollars) == "number" and G.GAME.dollars or 0
+        if dollars >= 1 and not G.GAME.modifiers.no_interest then
+            local earned = interest_amount * math.min(math.floor(dollars / interest_base), math.floor(interest_cap / interest_base))
             if earned >= 1 then ease_dollars(earned) end
         end
         return reb4l_orig_skip_blind(e)
@@ -135,9 +140,11 @@ if REB4LANCED.config.interest_on_skip then
 end
 
 
--- Chicot (modes 2 & 3): Card:add_to_deck has a hardcoded ability.name == 'Chicot' check
--- (card.lua:777) that fires AFTER SMODS's add_to_deck hook, unconditionally disabling the boss
--- blind. Block it by temporarily marking the blind as already disabled so the check is a no-op.
+-- Chicot (modes 2 & 3): two hardcoded ability.name == 'Chicot' checks exist in card.lua:
+--   card.lua:783  in Card:add_to_deck  -- fires when Chicot is bought during the boss blind
+--   card.lua:2898 in Card:calculate    -- fires on context.setting_blind (the main trigger)
+-- Both unconditionally disable the boss blind. Block each by temporarily marking the blind as
+-- already disabled so the check is a no-op, then restore after the call.
 if REB4LANCED.config.chicot_mode ~= 1 then
     local reb4l_orig_add_to_deck = Card.add_to_deck
     function Card:add_to_deck(from_debuff)
@@ -146,6 +153,18 @@ if REB4LANCED.config.chicot_mode ~= 1 then
         if fake_disabled then G.GAME.blind.disabled = true end
         reb4l_orig_add_to_deck(self, from_debuff)
         if fake_disabled then G.GAME.blind.disabled = false end
+    end
+
+    local reb4l_orig_card_calculate = Card.calculate
+    function Card:calculate(context)
+        local fake_disabled = self.ability and self.ability.name == 'Chicot'
+            and context and context.setting_blind
+            and context.blind and context.blind.boss
+            and G.GAME and G.GAME.blind and not G.GAME.blind.disabled
+        if fake_disabled then G.GAME.blind.disabled = true end
+        local result = reb4l_orig_card_calculate(self, context)
+        if fake_disabled then G.GAME.blind.disabled = false end
+        return result
     end
 end
 
@@ -382,10 +401,10 @@ end
 
 -- Per-stake blind chip scaling: override get_blind_amount so both the blind select
 -- screen and Blind:set_blind (which calls this function) see stake-appropriate values.
--- Falls back to vanilla if blind_scaling_enhanced is off, no active game, or mod stake.
+-- Falls back to vanilla if stakes_enhanced is off, no active game, or mod stake.
 local reb4l_orig_get_blind_amount = get_blind_amount
 function get_blind_amount(ante)
-    if REB4LANCED.config.blind_scaling_enhanced
+    if REB4LANCED.config.stakes_enhanced
         and G.GAME and G.GAME.stake then
         local stake = reb4l_stake_index[SMODS.stake_from_index(G.GAME.stake)]
         if stake then
@@ -436,63 +455,85 @@ function Blind:set_blind(blind, reset, silent)
     return result
 end
 
--- Black Stake: discarded cards are reshuffled into the deck.
+-- Reshuffle discards into deck (reserved for a future custom stake).
+-- Activate by setting G.GAME.modifiers.reb4l_reshuffle_discards = true in the stake's modifiers.
+-- HTR: Jacks are reshuffled into the deck (always active when hit_the_road_enhanced is on).
 --
--- Approach mirrors Hit the Road exactly:
---   1. During pre_discard, queue event A (trigger='after', blocking=false).
---   2. A fires immediately (it's first in queue, nothing blocks it).
---      A calls draw_card × N, appending events E1..EN at the queue tail.
---      A also appends a shuffle event G after E1..EN.
---   3. Discard B-events (trigger='before', blocking=true) run next, moving
---      cards to G.discard.
---   4. STATE_COMPLETE=false fires → DRAW_TO_HAND state set.
---   5. E1..EN fire (blockable, wait behind B-events): cards move from
---      G.discard → G.deck.  Cards are now IN the deck.
---   6. G fires (blockable, waits behind E-events): deck shuffled with cards
---      already present → truly random positions.
---   7. DRAW_TO_HAND handler runs (next game-loop iteration): draws from the
---      shuffled deck.  Discarded cards appear at random positions.
---
--- blocking=false on A and G means they never block UI events (View Deck, etc.).
+-- Both features populate tables during pre_discard, then the draw_from_deck_to_hand
+-- wrapper below performs the actual move + shuffle. By the time draw_from_deck_to_hand
+-- runs, all discard animation events have completed and cards ARE in G.discard.
+REB4LANCED.black_reshuffle = REB4LANCED.black_reshuffle or {}
+
 local reb4l_orig_calculate_context = SMODS.calculate_context
 SMODS.calculate_context = function(ctx)
     if ctx.pre_discard and ctx.full_hand
-        and REB4LANCED.config.black_stake_enhanced
-        and G.GAME and G.GAME.stake then
-        local stake = reb4l_stake_index[SMODS.stake_from_index(G.GAME.stake)]
-        if stake and stake >= 4 then
-            local to_reshuffle = {}
-            for _, c in ipairs(ctx.full_hand) do
-                to_reshuffle[#to_reshuffle + 1] = c
-            end
-            G.E_MANAGER:add_event(Event({
-                trigger = 'after',
-                blocking = false,
-                blockable = true,
-                func = function()
-                    local n = #to_reshuffle
-                    for i, card in ipairs(to_reshuffle) do
-                        draw_card(G.discard, G.deck, (i * 100) / n, 'back', false, card)
-                    end
-                    -- Shuffle queued separately so it runs AFTER E-events emplace cards
-                    G.E_MANAGER:add_event(Event({
-                        blocking = false,
-                        blockable = true,
-                        func = function()
-                            if G.deck then
-                                G.deck:shuffle('reb4l_black_'
-                                    .. (G.GAME.hands_played or 0) .. '_'
-                                    .. (G.GAME.current_round.discards_used or 0))
-                            end
-                            return true
-                        end
-                    }))
-                    return true
-                end
-            }))
+        and REB4LANCED.config.stakes_enhanced
+        and G.GAME and G.GAME.modifiers
+        and G.GAME.modifiers.reb4l_reshuffle_discards then
+        for _, c in ipairs(ctx.full_hand) do
+            REB4LANCED.black_reshuffle[#REB4LANCED.black_reshuffle + 1] = c
         end
     end
     return reb4l_orig_calculate_context(ctx)
+end
+
+-- Wrap draw_from_deck_to_hand: by the time this runs, the discard animation events
+-- have all completed and cards are physically in G.discard. Move pending cards to
+-- the deck and shuffle before any replacement cards are drawn.
+local reb4l_orig_draw_from_deck = G.FUNCS.draw_from_deck_to_hand
+G.FUNCS.draw_from_deck_to_hand = function(e)
+    local shuffled = false
+    -- HTR: reshuffle jacks
+    if REB4LANCED.htr_jacks and next(REB4LANCED.htr_jacks) then
+        for _, jack_card in pairs(REB4LANCED.htr_jacks) do
+            if jack_card.area == G.discard then
+                G.discard:remove_card(jack_card)
+                G.deck:emplace(jack_card)
+                shuffled = true
+            end
+        end
+        REB4LANCED.htr_jacks = {}
+    end
+    -- Black Stake: reshuffle all discarded cards
+    if next(REB4LANCED.black_reshuffle) then
+        for _, card in ipairs(REB4LANCED.black_reshuffle) do
+            if card.area == G.discard then
+                G.discard:remove_card(card)
+                G.deck:emplace(card)
+                shuffled = true
+            end
+        end
+        REB4LANCED.black_reshuffle = {}
+    end
+    if shuffled then
+        G.deck:shuffle('reb4l_reshuffle_'
+            .. (G.GAME.hands_played or 0) .. '_'
+            .. (G.GAME.current_round.discards_used or 0))
+    end
+    return reb4l_orig_draw_from_deck(e)
+end
+
+-- Black Stake: reroll cost scales by $2 per reroll instead of $1.
+-- We cannot wrap G.FUNCS.reroll_shop because calculate_reroll_cost is called inside
+-- an `immediate` event (async), so cost hasn't changed yet when the outer call returns.
+-- Instead, wrap calculate_reroll_cost itself: if reroll_cost_increase actually went up
+-- (meaning a real paid reroll just happened), add extra increments for Black Stake scale.
+local reb4l_orig_calculate_reroll_cost = calculate_reroll_cost
+function calculate_reroll_cost(skip_increment)
+    local pre = G.GAME and G.GAME.current_round and (G.GAME.current_round.reroll_cost_increase or 0) or 0
+    reb4l_orig_calculate_reroll_cost(skip_increment)
+    if REB4LANCED.config.stakes_enhanced
+        and G.GAME and G.GAME.modifiers and G.GAME.modifiers.reb4l_reroll_scale
+        and G.GAME.current_round and G.GAME.round_resets then
+        local post = G.GAME.current_round.reroll_cost_increase or 0
+        if post > pre then
+            local extra = G.GAME.modifiers.reb4l_reroll_scale - 1
+            G.GAME.current_round.reroll_cost_increase = post + extra
+            G.GAME.current_round.reroll_cost =
+                (G.GAME.round_resets.temp_reroll_cost or G.GAME.round_resets.reroll_cost)
+                + G.GAME.current_round.reroll_cost_increase
+        end
+    end
 end
 
 local reb4l_orig_level_up_hand = level_up_hand
@@ -502,7 +543,12 @@ function level_up_hand(card, hand, instant, amount, statustext)
     if G.jokers then
         for _, joker in ipairs(G.jokers.cards) do
             if joker.config.center.key == 'j_constellation' and not joker.debuff then
-                joker.ability.extra.Xmult = joker.ability.extra.Xmult + joker.ability.extra.Xmult_mod * levels
+                -- Migrate old save: ability.extra was {Xmult=n, Xmult_mod=0.1}
+                if type(joker.ability.extra) == 'table' then
+                    joker.ability.Xmult_mod = joker.ability.extra.Xmult_mod or 0.1
+                    joker.ability.extra = joker.ability.extra.Xmult or 1
+                end
+                joker.ability.extra = joker.ability.extra + joker.ability.Xmult_mod * levels
                 joker:juice_up(0.5, 0.3)
             end
         end

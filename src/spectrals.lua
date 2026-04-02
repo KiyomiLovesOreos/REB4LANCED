@@ -115,6 +115,7 @@ SMODS.Consumable:take_ownership('ouija', {
 end -- REB4LANCED.config.sigil_ouija_enhanced
 
 -- Ectoplasm: random -1 hands/discards/hand size
+if REB4LANCED.config.ectoplasm_enhanced then
 SMODS.Consumable:take_ownership('ectoplasm', {
     loc_txt = {
         name = 'Ectoplasm',
@@ -159,3 +160,4 @@ SMODS.Consumable:take_ownership('ectoplasm', {
         return next(SMODS.Edition:get_edition_cards(G.jokers, true))
     end,
 }, false)
+end -- REB4LANCED.config.ectoplasm_enhanced

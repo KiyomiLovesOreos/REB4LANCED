@@ -2,18 +2,25 @@
 -- Keys use the vanilla identifier WITHOUT the 'tag_' class prefix.
 
 -- Edition Tags (negative, foil, holo, polychrome):
---   Always use enhanced behavior: buy_card hook in overrides.lua handles edition on purchase.
+--   Enhanced behavior: buy_card hook in overrides.lua handles edition on purchase.
+if REB4LANCED.config.edition_tags_enhanced then
 
 SMODS.Tag:take_ownership('negative', {
     min_ante = 2,
+    loc_txt = {
+        name = 'Negative Tag',
+        text = {
+            'Next {C:attention}editionless{} Joker',
+            'bought from the {C:attention}shop{}',
+            'gains {C:dark_edition}Negative{} edition',
+        },
+    },
     loc_vars = function(self, info_queue, tag)
         info_queue[#info_queue + 1] = G.P_CENTERS.e_negative
     end,
     apply = function(self, tag, context)
-        if context.type == 'store_joker_modify' then
-            -- enhanced: buy_card hook in overrides.lua handles edition on purchase
-            return
-        end
+        if context.type == 'new_blind_choice' then return true end
+        -- buy_card hook in overrides.lua handles edition on purchase; block vanilla store_joker_modify
     end,
     in_pool = function(self, args)
         return G.P_CENTERS["e_negative"].discovered
@@ -21,13 +28,19 @@ SMODS.Tag:take_ownership('negative', {
 }, false)
 
 SMODS.Tag:take_ownership('foil', {
+    loc_txt = {
+        name = 'Foil Tag',
+        text = {
+            'Next {C:attention}editionless{} Joker',
+            'bought from the {C:attention}shop{}',
+            'gains {C:foil}Foil{} edition',
+        },
+    },
     loc_vars = function(self, info_queue, tag)
         info_queue[#info_queue + 1] = G.P_CENTERS.e_foil
     end,
     apply = function(self, tag, context)
-        if context.type == 'store_joker_modify' then
-            return
-        end
+        if context.type == 'new_blind_choice' then return true end
     end,
     in_pool = function(self, args)
         return G.P_CENTERS["e_foil"].discovered
@@ -35,13 +48,19 @@ SMODS.Tag:take_ownership('foil', {
 }, false)
 
 SMODS.Tag:take_ownership('holo', {
+    loc_txt = {
+        name = 'Holographic Tag',
+        text = {
+            'Next {C:attention}editionless{} Joker',
+            'bought from the {C:attention}shop{}',
+            'gains {C:holo}Holographic{} edition',
+        },
+    },
     loc_vars = function(self, info_queue, tag)
         info_queue[#info_queue + 1] = G.P_CENTERS.e_holo
     end,
     apply = function(self, tag, context)
-        if context.type == 'store_joker_modify' then
-            return
-        end
+        if context.type == 'new_blind_choice' then return true end
     end,
     in_pool = function(self, args)
         return G.P_CENTERS["e_holo"].discovered
@@ -49,18 +68,26 @@ SMODS.Tag:take_ownership('holo', {
 }, false)
 
 SMODS.Tag:take_ownership('polychrome', {
+    loc_txt = {
+        name = 'Polychrome Tag',
+        text = {
+            'Next {C:attention}editionless{} Joker',
+            'bought from the {C:attention}shop{}',
+            'gains {C:polychrome}Polychrome{} edition',
+        },
+    },
     loc_vars = function(self, info_queue, tag)
         info_queue[#info_queue + 1] = G.P_CENTERS.e_polychrome
     end,
     apply = function(self, tag, context)
-        if context.type == 'store_joker_modify' then
-            return
-        end
+        if context.type == 'new_blind_choice' then return true end
     end,
     in_pool = function(self, args)
         return G.P_CENTERS["e_polychrome"].discovered
     end,
 }, false)
+
+end -- REB4LANCED.config.edition_tags_enhanced
 
 -- Pack Tags (standard, charm, meteor, buffoon, ethereal):
 --   Adds mega pack to next shop instead of opening immediately.
@@ -200,7 +227,8 @@ SMODS.Tag:take_ownership('ethereal', {
 
 end -- REB4LANCED.config.pack_tags_enhanced
 
--- Uncommon Tag: directly spawns a random Uncommon Joker (vanilla: adds one to shop)
+-- Uncommon Tag / Rare Tag: directly spawn a Joker (vanilla: adds one to shop)
+if REB4LANCED.config.joker_tags_enhanced then
 SMODS.Tag:take_ownership('uncommon', {
     loc_txt = {
         name = 'Uncommon Tag',
@@ -253,8 +281,10 @@ SMODS.Tag:take_ownership('rare', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.joker_tags_enhanced
 
 -- Voucher Tag: adds a free Voucher to the next shop
+if REB4LANCED.config.voucher_tag_enhanced then
 SMODS.Tag:take_ownership('voucher', {
     loc_txt = {
         name = 'Voucher Tag',
@@ -279,11 +309,10 @@ SMODS.Tag:take_ownership('voucher', {
         end
     end,
 }, false)
-
--- Juggle Tag: vanilla behavior retained (+3 hand size this round)
-SMODS.Tag:take_ownership('juggle', {}, false)
+end -- REB4LANCED.config.voucher_tag_enhanced
 
 -- Garbage Tag: $2/discard
+if REB4LANCED.config.garbage_tag_enhanced then
 SMODS.Tag:take_ownership('garbage', {
     min_ante = 2,
     config = { dollars_per_discard = 2 },
@@ -304,8 +333,10 @@ SMODS.Tag:take_ownership('garbage', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.garbage_tag_enhanced
 
 -- Coupon Tag: enhanced adds a free random booster pack
+if REB4LANCED.config.coupon_tag_enhanced then
 SMODS.Tag:take_ownership('coupon', {
     loc_txt = {
         name = 'Coupon Tag',
@@ -317,18 +348,11 @@ SMODS.Tag:take_ownership('coupon', {
     apply = function(self, tag, context)
         if context.type == 'shop_final_pass' and G.shop and not G.GAME.shop_free then
             G.GAME.shop_free = true
-            local extra_booster = nil
-            if G.shop_booster then
-                local pack_keys = {
-                    'p_standard_normal_1', 'p_arcana_normal_1',
-                    'p_celestial_normal_1', 'p_buffoon_normal_1', 'p_spectral_normal_1'
-                }
-                local pack_key = pseudorandom_element(pack_keys, pseudoseed('reb4l_coupon'))
-                extra_booster = Card(G.shop_booster.T.x, G.shop_booster.T.y, G.CARD_W, G.CARD_H, G.P_CARDS.empty, G.P_CENTERS[pack_key])
-                G.shop_booster:emplace(extra_booster)
-                create_shop_card_ui(extra_booster, 'Booster', G.shop_booster)
-                extra_booster.states.visible = false
-            end
+            local pack_keys = {
+                'p_standard_mega_1', 'p_arcana_mega_1',
+                'p_celestial_mega_1', 'p_buffoon_mega_1', 'p_spectral_mega_1'
+            }
+            local pack_key = pseudorandom_element(pack_keys, pseudoseed('reb4l_coupon'))
             tag:yep('+', G.C.GREEN, function()
                 if G.shop_jokers and G.shop_booster then
                     for _, card in pairs(G.shop_jokers.cards) do
@@ -340,8 +364,10 @@ SMODS.Tag:take_ownership('coupon', {
                         booster:set_cost()
                     end
                 end
+                local extra_booster = SMODS.add_booster_to_shop(pack_key)
                 if extra_booster then
-                    extra_booster:start_materialize()
+                    extra_booster.ability.couponed = true
+                    extra_booster:set_cost()
                 end
                 return true
             end)
@@ -350,8 +376,10 @@ SMODS.Tag:take_ownership('coupon', {
         end
     end,
 }, false)
+end -- REB4LANCED.config.coupon_tag_enhanced
 
 -- Double Tag: adds reb4l_dt_firing guard so Anaglyph doubling doesn't loop on this tag
+if REB4LANCED.config.anaglyph_enhanced then
 SMODS.Tag:take_ownership('double', {
     apply = function(self, tag, context)
         if context.type == 'tag_add' and context.tag.key ~= 'tag_double' and context.tag.key ~= 'double' then
@@ -372,34 +400,7 @@ SMODS.Tag:take_ownership('double', {
         end
     end,
 }, false)
-
--- D6 Tag: 3 free rerolls (vanilla: $0 reroll cost)
-if REB4LANCED.config.tag_reworks_enhanced then
-SMODS.Tag:take_ownership('d6', {
-    loc_txt = {
-        name = 'D6 Tag',
-        text = {
-            'The next {C:attention}Shop{}',
-            'has {C:attention}3{} free rerolls',
-        },
-    },
-    loc_vars = function(self, info_queue, tag)
-        return { vars = { '{C:attention}3{} are free' } }
-    end,
-    apply = function(self, tag, context)
-        if context.type == 'shop_start' and not G.GAME.shop_d6ed then
-            G.GAME.shop_d6ed = true
-            tag:yep('+', G.C.GREEN, function()
-                G.GAME.current_round.free_rerolls = (G.GAME.current_round.free_rerolls or 0) + 3
-                calculate_reroll_cost(true)
-                return true
-            end)
-            tag.triggered = true
-            return true
-        end
-    end,
-}, false)
-end
+end -- REB4LANCED.config.anaglyph_enhanced
 
 -- Orbital Tag: 5 levels (vanilla: 3 levels)
 if REB4LANCED.config.tag_reworks_enhanced then

@@ -1,0 +1,24 @@
+[manifest]
+version = "1.0.0"
+dump_lua = true
+priority = -1
+
+# Blue Stake: interest at $1 per $7 held (vanilla: $1 per $5).
+# G.GAME.interest_base is set to 7 by Blue Stake's SMODS modifiers.
+# Falls back to 5 when stakes_enhanced is off or on lower stakes.
+
+[[patches]]
+[patches.pattern]
+target = "functions/state_events.lua"
+pattern = "local interest_rate = 5 + (G.GAME.modifiers.srdx_interest_mod or 0)"
+position = "at"
+payload = "local interest_rate = (G.GAME.interest_base or 5) + (G.GAME.modifiers.srdx_interest_mod or 0)"
+match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = "functions/common_events.lua"
+pattern = "local interest_rate = 5 + (G.GAME.modifiers.srdx_interest_mod or 0)"
+position = "at"
+payload = "local interest_rate = (G.GAME.interest_base or 5) + (G.GAME.modifiers.srdx_interest_mod or 0)"
+match_indent = true

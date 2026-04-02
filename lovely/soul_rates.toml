@@ -3,7 +3,7 @@ version = "1.0.0"
 dump_lua = true
 priority = -1
 
-# Black Hole: 3% chance in Planet (and Spectral) packs (vanilla: 0.3%)
+# Black Hole: 1.5% chance in Planet (and Spectral) packs (vanilla: 0.3%)
 [[patches]]
 [patches.pattern]
 target = "functions/common_events.lua"
@@ -19,14 +19,14 @@ position = "at"
 payload = '''
 if (_type == 'Planet' or _type == 'Spectral') and
 not (G.GAME.used_jokers['c_black_hole'] and not SMODS.showman('c_black_hole')) then
-    if pseudorandom('soul_'.._type..G.GAME.round_resets.ante) > (REB4LANCED and REB4LANCED.config.buffed_black_hole and 0.97 or 0.997) then
+    if pseudorandom('soul_'.._type..G.GAME.round_resets.ante) > (REB4LANCED and REB4LANCED.config.buffed_black_hole and 0.985 or 0.997) then
         forced_key = 'c_black_hole'
     end
 end
 '''
 match_indent = true
 
-# The Soul: 0.75% chance in Tarot/Spectral packs (vanilla: 0.3%)
+# The Soul: 0.5% chance in Tarot/Spectral packs (vanilla: 0.3%)
 [[patches]]
 [patches.pattern]
 target = "functions/common_events.lua"
@@ -42,7 +42,7 @@ position = "at"
 payload = '''
 if (_type == 'Tarot' or _type == 'Spectral' or _type == 'Tarot_Planet') and
 not (G.GAME.used_jokers['c_soul'] and not SMODS.showman('c_soul')) then
-    if pseudorandom('soul_'.._type..G.GAME.round_resets.ante) > (REB4LANCED and REB4LANCED.config.buffed_soul and 0.9925 or 0.997) then
+    if pseudorandom('soul_'.._type..G.GAME.round_resets.ante) > (REB4LANCED and REB4LANCED.config.buffed_soul and 0.995 or 0.997) then
         forced_key = 'c_soul'
     end
 end
