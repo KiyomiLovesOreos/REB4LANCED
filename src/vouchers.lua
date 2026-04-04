@@ -45,9 +45,10 @@ SMODS.Voucher:take_ownership('petroglyph', {
 end -- REB4LANCED.config.hieroglyph_rework
 
 -- Tarot Tycoon: every shop has a free Mega Arcana Pack
+-- extra = 1 nullifies vanilla's tarot_rate boost (4*extra); our free pack replaces it.
 if REB4LANCED.config.tarot_tycoon_enhanced then
 SMODS.Voucher:take_ownership('tarot_tycoon', {
-    config = {},
+    config = { extra = 1 },
     loc_txt = {
         name = 'Tarot Tycoon',
         text = {
@@ -86,9 +87,10 @@ SMODS.Voucher:take_ownership('tarot_tycoon', {
 end -- REB4LANCED.config.tarot_tycoon_enhanced
 
 -- Planet Tycoon: each planet card in shop has a 1/odds chance to be Negative
+-- extra = 1 nullifies vanilla's planet_rate boost (4*extra); our Negative chance replaces it.
 if REB4LANCED.config.planet_tycoon_enhanced then
 SMODS.Voucher:take_ownership('planet_tycoon', {
-    config = { extra = { odds = 2 } },
+    config = { extra = 1, reb4l_pt_odds = 2 },
     loc_txt = {
         name = 'Planet Tycoon',
         text = {
@@ -99,14 +101,14 @@ SMODS.Voucher:take_ownership('planet_tycoon', {
     },
     loc_vars = function(self, info_queue, card)
         info_queue[#info_queue + 1] = { key = 'e_negative_consumable', set = 'Edition', config = { extra = 1 } }
-        return { vars = { (card.ability.extra and card.ability.extra.odds) or 2 } }
+        return { vars = { card.ability.reb4l_pt_odds or 2 } }
     end,
     update = function(self, card, dt)
         if G.shop_jokers and G.shop_jokers.cards then
             for _, v in ipairs(G.shop_jokers.cards) do
                 if v.ability.set == 'Planet' and not v.tycooned then
                     v.tycooned = true
-                    local odds = (card.ability.extra and card.ability.extra.odds) or 2
+                    local odds = card.ability.reb4l_pt_odds or 2
                     if pseudorandom(pseudoseed('planet_tycoon_' .. v.sort_id)) < 1 / odds then
                         v:set_edition('e_negative', true)
                     end
@@ -165,9 +167,10 @@ SMODS.Voucher:take_ownership('telescope', {
 end -- REB4LANCED.config.telescope_enhanced
 
 -- Observatory: X2 Mult per Planet card used (vanilla: X1.5)
+-- SMODS's own calculate returns { x_mult = card.ability.extra }, so extra must stay a plain number.
 if REB4LANCED.config.observatory_enhanced then
 SMODS.Voucher:take_ownership('observatory', {
-    config = { extra = { Xmult = 2 } },
+    config = { extra = 2 },
     loc_txt = {
         name = 'Observatory',
         text = {
@@ -178,7 +181,7 @@ SMODS.Voucher:take_ownership('observatory', {
         },
     },
     loc_vars = function(self, info_queue, card)
-        return { vars = { card.ability.extra.Xmult } }
+        return { vars = { card.ability.extra } }
     end,
 }, false)
 end -- REB4LANCED.config.observatory_enhanced

@@ -87,45 +87,6 @@ SMODS.Consumable:take_ownership('lovers', {
 }, false)
 end -- REB4LANCED.config.lovers_enhanced
 
--- The Star: converts up to 4 cards to Diamonds (vanilla: 3)
-if REB4LANCED.config.tarot_suit_enhanced then
-SMODS.Consumable:take_ownership('star', {
-    config = { max_highlighted = 4, suit_conv = 'Diamonds' },
-    loc_vars = function(self, info_queue, card)
-        card.ability.max_highlighted = 4
-        return { vars = { card.ability.max_highlighted, localize(card.ability.suit_conv, 'suits_plural'), colours = { G.C.SUITS[card.ability.suit_conv] } } }
-    end,
-}, false)
-
--- The Moon: converts up to 4 cards to Clubs (vanilla: 3)
-SMODS.Consumable:take_ownership('moon', {
-    config = { max_highlighted = 4, suit_conv = 'Clubs' },
-    loc_vars = function(self, info_queue, card)
-        card.ability.max_highlighted = 4
-        return { vars = { card.ability.max_highlighted, localize(card.ability.suit_conv, 'suits_plural'), colours = { G.C.SUITS[card.ability.suit_conv] } } }
-    end,
-}, false)
-
--- The Sun: converts up to 4 cards to Hearts (vanilla: 3)
-SMODS.Consumable:take_ownership('sun', {
-    config = { max_highlighted = 4, suit_conv = 'Hearts' },
-    loc_vars = function(self, info_queue, card)
-        card.ability.max_highlighted = 4
-        return { vars = { card.ability.max_highlighted, localize(card.ability.suit_conv, 'suits_plural'), colours = { G.C.SUITS[card.ability.suit_conv] } } }
-    end,
-}, false)
-
--- The World: converts up to 4 cards to Spades (vanilla: 3)
-SMODS.Consumable:take_ownership('world', {
-    config = { max_highlighted = 4, suit_conv = 'Spades' },
-    loc_vars = function(self, info_queue, card)
-        card.ability.max_highlighted = 4
-        return { vars = { card.ability.max_highlighted, localize(card.ability.suit_conv, 'suits_plural'), colours = { G.C.SUITS[card.ability.suit_conv] } } }
-    end,
-}, false)
-
-end -- REB4LANCED.config.tarot_suit_enhanced
-
 -- The Wheel of Fortune: 1/3 chance to apply edition
 if REB4LANCED.config.wheel_of_fortune_enhanced then
 SMODS.Consumable:take_ownership('wheel_of_fortune', {

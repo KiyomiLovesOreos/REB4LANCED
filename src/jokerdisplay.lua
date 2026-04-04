@@ -447,15 +447,34 @@ JokerDisplay.Definitions["j_superposition"] = {
 JokerDisplay.Definitions["j_bootstraps"] = {
     text = {
         { text = "+" },
-        { ref_table = "card.joker_display_values", ref_value = "mult", retrigger_type = "mult" },
+        { ref_table = "card.joker_display_values", ref_value = "mult" },
     },
     text_config = { colour = G.C.MULT },
     calc_function = function(card)
-        card.joker_display_values.mult = card.ability.extra.mult *
-            math.floor(
-                ((G.GAME and G.GAME.dollars or 0) + (G.GAME and G.GAME.dollar_buffer or 0))
-                / card.ability.extra.dollars
-            )
+        local extra = card.ability.extra
+        local mult_per_card, dollars
+        if type(extra) == "table" then
+            mult_per_card = extra.mult or 1
+            dollars = extra.dollars or 5
+        else
+            mult_per_card = 2
+            dollars = extra or 2
+        end
+        local per_card = mult_per_card * math.floor(
+            math.max(0, (G.GAME and G.GAME.dollars or 0) + (G.GAME and G.GAME.dollar_buffer or 0)) / dollars
+        )
+        local total = 0
+        if per_card > 0 then
+            local _, _, scoring_hand = JokerDisplay.evaluate_hand()
+            if scoring_hand then
+                for _, c in ipairs(scoring_hand) do
+                    if c:is_suit('Hearts') or c:is_suit('Diamonds') then
+                        total = total + per_card * JokerDisplay.calculate_card_triggers(c, scoring_hand)
+                    end
+                end
+            end
+        end
+        card.joker_display_values.mult = total
     end,
 }
 
@@ -465,13 +484,25 @@ JokerDisplay.Definitions["j_bootstraps"] = {
 JokerDisplay.Definitions["j_bull"] = {
     text = {
         { text = "+" },
-        { ref_table = "card.joker_display_values", ref_value = "chips", retrigger_type = "mult" },
+        { ref_table = "card.joker_display_values", ref_value = "chips" },
     },
     text_config = { colour = G.C.CHIPS },
     calc_function = function(card)
-        card.joker_display_values.chips = math.floor(
+        local chips_per_card = 3 * math.floor(
             math.max(0, (G.GAME and G.GAME.dollars or 0) + (G.GAME and G.GAME.dollar_buffer or 0)) / 5
         )
+        local total = 0
+        if chips_per_card > 0 then
+            local _, _, scoring_hand = JokerDisplay.evaluate_hand()
+            if scoring_hand then
+                for _, c in ipairs(scoring_hand) do
+                    if c:is_suit('Spades') or c:is_suit('Clubs') then
+                        total = total + chips_per_card * JokerDisplay.calculate_card_triggers(c, scoring_hand)
+                    end
+                end
+            end
+        end
+        card.joker_display_values.chips = total
     end,
 }
 
@@ -629,16 +660,8 @@ JokerDisplay.Definitions["j_seeing_double"] = {
     },
     calc_function = function(card)
         local text, _, scoring_hand = JokerDisplay.evaluate_hand()
-        local has_club = false
-        local has_other = false
-        if text ~= "Unknown" then
-            for _, c in pairs(scoring_hand) do
-                if c:is_suit("Clubs") then has_club = true
-                else has_other = true end
-            end
-        end
         local xmult = type(card.ability.extra) == "number" and card.ability.extra or 1.25
-        if has_club and has_other then
+        if text ~= "Unknown" and #scoring_hand >= 2 and SMODS.seeing_double_check(scoring_hand, 'Clubs') then
             local total_triggers = 0
             for _, c in pairs(scoring_hand) do
                 total_triggers = total_triggers + JokerDisplay.calculate_card_triggers(c, scoring_hand)

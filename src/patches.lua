@@ -10,13 +10,17 @@ if REB4LANCED.config.matador_enhanced and G.P_CENTERS.j_matador then G.P_CENTERS
 if REB4LANCED.config.todo_list_enhanced and G.P_CENTERS.j_todo_list and G.P_CENTERS.j_todo_list.config.extra then
     G.P_CENTERS.j_todo_list.config.extra.dollars = 5
 end
-if REB4LANCED.config.obelisk_enhanced    and G.P_CENTERS.j_obelisk    then G.P_CENTERS.j_obelisk.config.extra    = 0.25 end
+-- Obelisk: handled via take_ownership in jokers.lua (config.extra is a table in vanilla; direct replacement would break it)
 if REB4LANCED.config.onyx_agate_enhanced and G.P_CENTERS.j_onyx_agate then G.P_CENTERS.j_onyx_agate.config.extra = 14   end
 if REB4LANCED.config.rough_gem_enhanced  and G.P_CENTERS.j_rough_gem  then G.P_CENTERS.j_rough_gem.config.extra  = 2    end
 
 -- Deck config patches
 if REB4LANCED.config.painted_mode and REB4LANCED.config.painted_mode > 1 and G.P_CENTERS.b_painted then G.P_CENTERS.b_painted.config.joker_slot = 0 end
 if REB4LANCED.config.nebula_enhanced  and G.P_CENTERS.b_nebula  then G.P_CENTERS.b_nebula.config.consumable_slot = 0 end
+if G.P_CENTERS.b_green then
+    G.P_CENTERS.b_green.config.extra_hand_bonus    = 3
+    G.P_CENTERS.b_green.config.extra_discard_bonus = 2
+end
 
 -- Enhancement config
 if REB4LANCED.config.mult_card_enhanced  and G.P_CENTERS.m_mult  then G.P_CENTERS.m_mult.config.mult   = 6  end

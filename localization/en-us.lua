@@ -1,9 +1,17 @@
-return {
-    descriptions = {
+local loc = {
+    misc = {
+        variables = {
+            a_discards = "+#1# Discard",
+        },
+    },
+}
+
+if REB4LANCED.config.stakes_enhanced then
+    loc.descriptions = {
         Stake = {
             stake_red = {
                 text = {
-                    "All {C:attention}blind payouts{} reduced by 1$",
+                    "All {C:attention}blind payouts{} reduced by {C:money}$1",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
@@ -30,24 +38,26 @@ return {
             },
             stake_purple = {
                 text = {
+                    "{C:attention}Showdown{} Boss Blinds every {C:attention}4{} Antes",
+                    "{s:0.8}Applies all previous Stakes",
+                },
+            },
+            stake_orange = {
+                text = {
                     "Shop can have {C:attention}Rental{} Jokers",
                     "{C:inactive,s:0.8}(Costs {C:money,s:0.8}$3{C:inactive,s:0.8} per round)",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
-            stake_orange = {
+            stake_gold = {
                 text = {
                     "Shop can have {C:attention}Perishable{} Jokers",
                     "{C:inactive,s:0.8}(Expires after {C:attention,s:0.8}6{C:inactive,s:0.8} rounds)",
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
-            stake_gold = {
-                text = {
-                    "{C:attention}Showdown{} Boss Blinds every {C:attention}4{} Antes",
-                    "{s:0.8}Applies all previous Stakes",
-                },
-            },
         },
-    },
-}
+    }
+end
+
+return loc

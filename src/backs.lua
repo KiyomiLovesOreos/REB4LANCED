@@ -47,17 +47,15 @@ SMODS.Back:take_ownership('checkered', {
 }, false)
 end
 
--- Anaglyph Deck: sets flag for the add_tag doubling override
--- Vanilla already gives Double Tag after each boss blind — we only add the doubling behaviour
+-- Anaglyph Deck: every tag gained creates one more of itself (deck passive, no Double Tag needed).
+-- The vanilla boss-beat Double Tag is suppressed by lovely/anaglyph.toml.
 if REB4LANCED.config.anaglyph_enhanced then
 SMODS.Back:take_ownership('anaglyph', {
     loc_txt = {
         name = "Anaglyph Deck",
         text = {
-            "After each {C:attention}Boss Blind{} is defeated,",
-            "receive a {C:attention}Double Tag",
-            "All other tags gained are also doubled",
-            "{C:inactive}(Double Tags are not doubled)",
+            "Gain {C:attention}2{} of every {C:attention}Tag",
+            "{C:inactive}instead of {C:attention}1",
         },
     },
     apply = function(self, back)
@@ -93,14 +91,26 @@ SMODS.Back:take_ownership('painted', {
 end
 
 -- Nebula Deck: remove -1 consumable slot penalty (consumeable_size patched in patches.lua)
--- Vanilla apply still runs, giving the Telescope voucher. No other effect.
+-- Vanilla config.voucher = 'v_telescope' gives Telescope; we also grant Observatory.
 if REB4LANCED.config.nebula_enhanced then
 SMODS.Back:take_ownership('nebula', {
     loc_txt = {
         name = "Nebula Deck",
         text = {
-            "Start with {C:attention,T:v_telescope}Telescope{} Voucher",
+            "Start with {C:attention,T:v_telescope}Telescope{}",
+            "and {C:attention,T:v_observatory}Observatory{} Vouchers",
         },
     },
+    apply = function(self, back)
+        -- Vanilla handles Telescope via config.voucher; we add Observatory on top.
+        G.GAME.used_vouchers['v_observatory'] = true
+        G.GAME.starting_voucher_count = (G.GAME.starting_voucher_count or 0) + 1
+        G.E_MANAGER:add_event(Event({
+            func = function()
+                Card.apply_to_run(nil, G.P_CENTERS['v_observatory'])
+                return true
+            end
+        }))
+    end,
 }, false)
 end

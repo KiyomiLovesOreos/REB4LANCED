@@ -58,29 +58,18 @@ function Blind:debuff_card(card, from_blind)
 end
 
 
--- Anaglyph Deck: copy every tag gained (except Double Tags and tags spawned by Double Tag)
-local reb4l_orig_add_tag = add_tag
-function add_tag(tag, ...)
-    reb4l_orig_add_tag(tag, ...)
-    if G.GAME and G.GAME.reb4l_anaglyph_active and not G.GAME.reb4l_dt_firing
-    and tag and tag.key ~= 'tag_double' and tag.key ~= 'double' then
-        if tag.ability and tag.ability.orbital_hand then
-            G.orbital_hand = tag.ability.orbital_hand
-        end
-        reb4l_orig_add_tag(Tag(tag.key), ...)
-        G.orbital_hand = nil
-    end
-end
-
 -- Edition Tags (enhanced): apply edition to a joker at purchase time
 -- Checks next(self.edition) to treat both nil and empty-table as "no edition".
 local reb4l_orig_buy_card = Card.buy_card
 function Card:buy_card(from_area)
+    -- Capture the card's current area BEFORE vanilla moves it out of the shop.
+    -- (vanilla calls buy_card with no arguments, so from_area is always nil)
+    local was_shop_joker = self.area == G.shop_jokers
     local result = reb4l_orig_buy_card(self, from_area)
     if REB4LANCED.config.edition_tags_enhanced
     and self.ability and self.ability.set == 'Joker'
     and (not self.edition or not next(self.edition))
-    and from_area == G.shop_jokers
+    and was_shop_joker
     and G.GAME and G.GAME.tags then
         local edition_map = {
             tag_negative   = 'e_negative',   negative   = 'e_negative',
@@ -140,30 +129,45 @@ if REB4LANCED.config.interest_on_skip then
 end
 
 
--- Chicot (modes 2 & 3): two hardcoded ability.name == 'Chicot' checks exist in card.lua:
---   card.lua:783  in Card:add_to_deck  -- fires when Chicot is bought during the boss blind
---   card.lua:2898 in Card:calculate    -- fires on context.setting_blind (the main trigger)
--- Both unconditionally disable the boss blind. Block each by temporarily marking the blind as
--- already disabled so the check is a no-op, then restore after the call.
+-- Chicot (modes 2 & 3) and Matador (when matador_enhanced): vanilla card.lua has
+-- hardcoded ability.name checks in Card:calculate_joker that bypass take_ownership.
+-- Chicot (~2898): fires at setting_blind → disables boss blind.
+-- Matador (~debuffed_hand): fires at debuffed_hand → double payout + error.
+-- Card:add_to_deck (~783) also has a Chicot check for buying mid-boss-blind.
+-- Block all by temporarily masking ability.name so the hardcoded checks fail.
+-- SMODS routes calculate_joker via center key, not ability.name, so our
+-- take_ownership calculate still fires correctly.
 if REB4LANCED.config.chicot_mode ~= 1 then
     local reb4l_orig_add_to_deck = Card.add_to_deck
     function Card:add_to_deck(from_debuff)
-        local fake_disabled = self.ability and self.ability.name == 'Chicot'
-            and G.GAME and G.GAME.blind and G.GAME.blind.boss and not G.GAME.blind.disabled
-        if fake_disabled then G.GAME.blind.disabled = true end
+        local is_chicot = self.ability and self.ability.name == 'Chicot'
+            and G.GAME and G.GAME.blind and G.GAME.blind.boss
+        if is_chicot then self.ability.name = 'reb4l_chicot' end
         reb4l_orig_add_to_deck(self, from_debuff)
-        if fake_disabled then G.GAME.blind.disabled = false end
+        if is_chicot then self.ability.name = 'Chicot' end
     end
+end
 
-    local reb4l_orig_card_calculate = Card.calculate
-    function Card:calculate(context)
-        local fake_disabled = self.ability and self.ability.name == 'Chicot'
-            and context and context.setting_blind
-            and context.blind and context.blind.boss
-            and G.GAME and G.GAME.blind and not G.GAME.blind.disabled
-        if fake_disabled then G.GAME.blind.disabled = true end
-        local result = reb4l_orig_card_calculate(self, context)
-        if fake_disabled then G.GAME.blind.disabled = false end
+do
+    local reb4l_orig_calculate_joker = Card.calculate_joker
+    function Card:calculate_joker(context)
+        local mask, restore
+        if self.ability then
+            if self.ability.name == 'Chicot' and REB4LANCED.config.chicot_mode ~= 1
+                and context and context.setting_blind then
+                mask, restore = 'reb4l_chicot', 'Chicot'
+            elseif self.ability.name == 'Matador' and REB4LANCED.config.matador_enhanced
+                and context and context.debuffed_hand then
+                mask, restore = 'reb4l_matador', 'Matador'
+            elseif self.ability.name == 'Bootstraps' and REB4LANCED.config.bootstraps_enhanced then
+                mask, restore = 'reb4l_bootstraps', 'Bootstraps'
+            elseif self.ability.name == 'Yorick' and REB4LANCED.config.yorick_enhanced then
+                mask, restore = 'reb4l_yorick', 'Yorick'
+            end
+        end
+        if mask then self.ability.name = mask end
+        local result = reb4l_orig_calculate_joker(self, context)
+        if restore then self.ability.name = restore end
         return result
     end
 end
@@ -184,6 +188,44 @@ if REB4LANCED.config.chicot_mode == 3 then
         if G.GAME then G.GAME.reb4l_tracking_skip = true end
         local result = reb4l_chicot_orig_skip(e)
         if G.GAME then G.GAME.reb4l_tracking_skip = false end
+        return result
+    end
+end
+
+-- Edition Tags: apply pending edition when buying an editionless joker from the shop.
+-- The apply function in tags.lua blocks vanilla's new_blind_choice and store_joker_modify
+-- contexts (returning true keeps the tag alive without triggering it). This hook fires
+-- instead, applying the edition on actual purchase and consuming the tag via yep().
+if REB4LANCED.config.edition_tags_enhanced then
+    local reb4l_edition_tag_map = {
+        tag_negative   = 'e_negative',
+        tag_foil       = 'e_foil',
+        tag_holo       = 'e_holo',
+        tag_polychrome = 'e_polychrome',
+    }
+    local reb4l_orig_buy_from_shop = G.FUNCS.buy_from_shop
+    G.FUNCS.buy_from_shop = function(e)
+        local card = e.config.ref_table
+        local is_editionless_joker = card and card.ability
+            and card.ability.set == 'Joker'
+            and not card.edition
+            and not card.from_tag
+        local result = reb4l_orig_buy_from_shop(e)
+        if is_editionless_joker then
+            for _, tag in ipairs(G.GAME and G.GAME.tags or {}) do
+                local edition_key = reb4l_edition_tag_map[tag.key]
+                if edition_key and not tag.triggered then
+                    local card_ref = card
+                    local ed = edition_key
+                    tag:yep('+', G.C.DARK_EDITION, function()
+                        card_ref:set_edition(ed, true, false)
+                        return true
+                    end)
+                    tag.triggered = true
+                    break
+                end
+            end
+        end
         return result
     end
 end
@@ -535,6 +577,25 @@ function calculate_reroll_cost(skip_increment)
         end
     end
 end
+
+
+-- Anaglyph deck passive: every tag gained creates one more of itself.
+if REB4LANCED.config.anaglyph_enhanced then
+    local reb4l_orig_add_tag = add_tag
+    function add_tag(_tag, ...)
+        reb4l_orig_add_tag(_tag, ...)
+        if G.GAME and G.GAME.reb4l_anaglyph_active and not _tag.reb4l_anaglyph_copy then
+            if _tag.ability and _tag.ability.orbital_hand then
+                G.orbital_hand = _tag.ability.orbital_hand
+            end
+            local copy = Tag(_tag.key)
+            copy.reb4l_anaglyph_copy = true
+            reb4l_orig_add_tag(copy)
+            G.orbital_hand = nil
+        end
+    end
+end
+
 
 local reb4l_orig_level_up_hand = level_up_hand
 function level_up_hand(card, hand, instant, amount, statustext)

@@ -25,7 +25,7 @@ SMODS.Stake:take_ownership('stake_green', {
         },
     },
     modifiers = function()
-        G.GAME.modifiers.enable_eternal_stickerbox_in_shop = true
+        G.GAME.modifiers.enable_eternals_in_shop = true
     end,
 }, true)
 
@@ -55,10 +55,23 @@ SMODS.Stake:take_ownership('stake_blue', {
     end,
 }, true)
 
--- Purple Stake: adds Rental Jokers (swapped with Orange)
+-- Purple Stake: Showdown Boss Blinds every 4 Antes (moved from Gold)
 SMODS.Stake:take_ownership('stake_purple', {
     loc_txt = {
         name = "Purple Stake",
+        text = {
+            "{C:attention}Showdown{} Boss Blinds every {C:attention}4{} Antes",
+        },
+    },
+    modifiers = function()
+        G.GAME.modifiers.showdown_interval = 4
+    end,
+}, true)
+
+-- Orange Stake: adds Rental Jokers (moved from Purple)
+SMODS.Stake:take_ownership('stake_orange', {
+    loc_txt = {
+        name = "Orange Stake",
         text = {
             "Shop can have {C:attention}Rental{} Jokers",
             "{C:inactive,s:0.8}(Costs {C:money,s:0.8}$3{C:inactive,s:0.8} per round)",
@@ -69,10 +82,10 @@ SMODS.Stake:take_ownership('stake_purple', {
     end,
 }, true)
 
--- Orange Stake: adds Perishable Jokers (swapped with Purple); 6 rounds instead of vanilla 5
-SMODS.Stake:take_ownership('stake_orange', {
+-- Gold Stake: adds Perishable Jokers (moved from Orange); 6 rounds instead of vanilla 5
+SMODS.Stake:take_ownership('stake_gold', {
     loc_txt = {
-        name = "Orange Stake",
+        name = "Gold Stake",
         text = {
             "Shop can have {C:attention}Perishable{} Jokers",
             "{C:inactive,s:0.8}(Expires after {C:attention,s:0.8}6{C:inactive,s:0.8} rounds)",
@@ -80,19 +93,9 @@ SMODS.Stake:take_ownership('stake_orange', {
     },
     modifiers = function()
         G.GAME.modifiers.enable_perishables_in_shop = true
-        G.GAME.perishable_rounds = 6
-    end,
-}, true)
-
-SMODS.Stake:take_ownership('stake_gold', {
-    loc_txt = {
-        name = "Gold Stake",
-        text = {
-            "{C:attention}Showdown{} Boss Blinds every {C:attention}4{} Antes",
-        },
-    },
-    modifiers = function()
-        G.GAME.modifiers.showdown_interval = 4
+        if REB4LANCED.config.perishable_enhanced then
+            G.GAME.perishable_rounds = 6
+        end
     end,
 }, true)
 

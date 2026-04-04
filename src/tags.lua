@@ -19,8 +19,10 @@ SMODS.Tag:take_ownership('negative', {
         info_queue[#info_queue + 1] = G.P_CENTERS.e_negative
     end,
     apply = function(self, tag, context)
-        if context.type == 'new_blind_choice' then return true end
-        -- buy_card hook in overrides.lua handles edition on purchase; block vanilla store_joker_modify
+        -- return true short-circuits apply_to_run before the vanilla store_joker_modify
+        -- fallback (which checks self.name == 'Negative Tag' etc.) can run.
+        -- The buy_card hook in overrides.lua handles edition on purchase instead.
+        if context.type == 'new_blind_choice' or context.type == 'store_joker_modify' then return true end
     end,
     in_pool = function(self, args)
         return G.P_CENTERS["e_negative"].discovered
@@ -40,7 +42,7 @@ SMODS.Tag:take_ownership('foil', {
         info_queue[#info_queue + 1] = G.P_CENTERS.e_foil
     end,
     apply = function(self, tag, context)
-        if context.type == 'new_blind_choice' then return true end
+        if context.type == 'new_blind_choice' or context.type == 'store_joker_modify' then return true end
     end,
     in_pool = function(self, args)
         return G.P_CENTERS["e_foil"].discovered
@@ -60,7 +62,7 @@ SMODS.Tag:take_ownership('holo', {
         info_queue[#info_queue + 1] = G.P_CENTERS.e_holo
     end,
     apply = function(self, tag, context)
-        if context.type == 'new_blind_choice' then return true end
+        if context.type == 'new_blind_choice' or context.type == 'store_joker_modify' then return true end
     end,
     in_pool = function(self, args)
         return G.P_CENTERS["e_holo"].discovered
@@ -80,7 +82,7 @@ SMODS.Tag:take_ownership('polychrome', {
         info_queue[#info_queue + 1] = G.P_CENTERS.e_polychrome
     end,
     apply = function(self, tag, context)
-        if context.type == 'new_blind_choice' then return true end
+        if context.type == 'new_blind_choice' or context.type == 'store_joker_modify' then return true end
     end,
     in_pool = function(self, args)
         return G.P_CENTERS["e_polychrome"].discovered
@@ -378,31 +380,35 @@ SMODS.Tag:take_ownership('coupon', {
 }, false)
 end -- REB4LANCED.config.coupon_tag_enhanced
 
--- Double Tag: adds reb4l_dt_firing guard so Anaglyph doubling doesn't loop on this tag
+-- Double Tag: when on Anaglyph deck, mark its created copy as reb4l_anaglyph_copy
+-- so the Anaglyph add_tag wrapper doesn't double it again.
+-- When NOT on Anaglyph, return nil so vanilla handles it normally.
 if REB4LANCED.config.anaglyph_enhanced then
 SMODS.Tag:take_ownership('double', {
     apply = function(self, tag, context)
-        if context.type == 'tag_add' and context.tag.key ~= 'tag_double' and context.tag.key ~= 'double' then
+        if not (G.GAME and G.GAME.reb4l_anaglyph_active) then return end
+        if context.type == 'tag_add' and context.tag.key ~= 'tag_double' then
             local lock = tag.ID
             G.CONTROLLER.locks[lock] = true
             tag:yep('+', G.C.BLUE, function()
                 if context.tag.ability and context.tag.ability.orbital_hand then
                     G.orbital_hand = context.tag.ability.orbital_hand
                 end
-                if G.GAME then G.GAME.reb4l_dt_firing = true end
-                add_tag(Tag(context.tag.key))
-                if G.GAME then G.GAME.reb4l_dt_firing = false end
+                local copy = Tag(context.tag.key)
+                copy.reb4l_anaglyph_copy = true
+                add_tag(copy)
                 G.orbital_hand = nil
                 G.CONTROLLER.locks[lock] = nil
                 return true
             end)
             tag.triggered = true
+            return true
         end
     end,
 }, false)
-end -- REB4LANCED.config.anaglyph_enhanced
+end
 
--- Orbital Tag: 5 levels (vanilla: 3 levels)
+
 if REB4LANCED.config.tag_reworks_enhanced then
 SMODS.Tag:take_ownership('orbital', {
     min_ante = 1,

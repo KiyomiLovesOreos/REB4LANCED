@@ -19,7 +19,7 @@ position = "at"
 payload = '''
 if (_type == 'Planet' or _type == 'Spectral') and
 not (G.GAME.used_jokers['c_black_hole'] and not SMODS.showman('c_black_hole')) then
-    if pseudorandom('soul_'.._type..G.GAME.round_resets.ante) > (REB4LANCED and REB4LANCED.config.buffed_black_hole and 0.985 or 0.997) then
+    if pseudorandom('soul_'.._type..G.GAME.round_resets.ante) > (REB4LANCED and REB4LANCED.config.buffed_black_hole and 0.99 or 0.997) then
         forced_key = 'c_black_hole'
     end
 end
@@ -42,7 +42,7 @@ position = "at"
 payload = '''
 if (_type == 'Tarot' or _type == 'Spectral' or _type == 'Tarot_Planet') and
 not (G.GAME.used_jokers['c_soul'] and not SMODS.showman('c_soul')) then
-    if pseudorandom('soul_'.._type..G.GAME.round_resets.ante) > (REB4LANCED and REB4LANCED.config.buffed_soul and 0.995 or 0.997) then
+    if pseudorandom('soul_'.._type..G.GAME.round_resets.ante) > (REB4LANCED and REB4LANCED.config.buffed_soul and 0.996 or 0.997) then
         forced_key = 'c_soul'
     end
 end

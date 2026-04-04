@@ -144,7 +144,8 @@ SMODS.Joker:take_ownership('seeing_double', {
             return nil, true  -- block vanilla's joker_main dispatch; we handle this in individual
         end
         if context.individual and context.cardarea == G.play then
-            if not card.debuff and SMODS.seeing_double_check(context.scoring_hand, 'Clubs') then
+            if not card.debuff and #context.scoring_hand >= 2
+                and SMODS.seeing_double_check(context.scoring_hand, 'Clubs') then
                 return { xmult = card.ability.extra }
             end
         end
@@ -208,7 +209,10 @@ end
 if REB4LANCED.config.ticket_enhanced then
 SMODS.Joker:take_ownership('ticket', {
     rarity = 2,
-    config = { extra = { dollars = 5 } },
+    config = { extra = 5 },
+    loc_vars = function(self, info_queue, card)
+        return { vars = { card.ability.extra } }
+    end,
 }, false)
 end
 
@@ -473,6 +477,7 @@ end
 -- Chicot mode 3: on defeating a boss blind, gain a copy of every tag gained from blind skips this run
 if REB4LANCED.config.chicot_mode == 3 then
 SMODS.Joker:take_ownership('chicot', {
+    blueprint_compat = true,
     loc_txt = {
         name = 'Chicot',
         text = {
@@ -490,7 +495,7 @@ SMODS.Joker:take_ownership('chicot', {
             return nil
         end
         if context.end_of_round and context.game_over == false and context.main_eval
-            and context.beat_boss and not context.blueprint then
+            and context.beat_boss then
             local skip_tags = G.GAME and G.GAME.reb4l_skip_tags or {}
             if #skip_tags > 0 then
                 local snapshot = {}
@@ -593,26 +598,26 @@ SMODS.Joker:take_ownership('hit_the_road', {
         return { vars = { card.ability.extra.xmult_gain, card.ability.extra.xmult } }
     end,
     calculate = function(self, card, context)
-        if context.blueprint then return end
-        if context.pre_discard and context.full_hand then
-            for _, c in ipairs(context.full_hand) do
-                if not c.debuff and c:get_id() == 11 then
-                    -- use card id as key to avoid double-adding if Blueprinted
-                    REB4LANCED.htr_jacks[c.unique_val or c] = c
+        if not context.blueprint then
+            if context.pre_discard and context.full_hand then
+                for _, c in ipairs(context.full_hand) do
+                    if not c.debuff and c:get_id() == 11 then
+                        REB4LANCED.htr_jacks[c.unique_val or c] = c
+                    end
                 end
             end
-        end
-        if context.discard and not context.other_card.debuff and context.other_card:get_id() == 11 then
-            card.ability.extra.xmult = card.ability.extra.xmult + card.ability.extra.xmult_gain
-            return {
-                message = localize { type = 'variable', key = 'a_xmult', vars = { card.ability.extra.xmult } },
-                colour = G.C.RED,
-                delay = 0.45
-            }
-        end
-        if context.end_of_round and context.game_over == false and context.main_eval and card.ability.extra.xmult > 1 then
-            card.ability.extra.xmult = 1
-            return { message = localize('k_reset'), colour = G.C.RED }
+            if context.discard and not context.other_card.debuff and context.other_card:get_id() == 11 then
+                card.ability.extra.xmult = card.ability.extra.xmult + card.ability.extra.xmult_gain
+                return {
+                    message = localize { type = 'variable', key = 'a_xmult', vars = { card.ability.extra.xmult } },
+                    colour = G.C.RED,
+                    delay = 0.45
+                }
+            end
+            if context.end_of_round and context.game_over == false and context.main_eval and card.ability.extra.xmult > 1 then
+                card.ability.extra.xmult = 1
+                return { message = localize('k_reset'), colour = G.C.RED }
+            end
         end
         if context.joker_main then
             return { xmult = card.ability.extra.xmult }
@@ -809,13 +814,13 @@ SMODS.Joker:take_ownership('bull', {
         },
     },
     loc_vars = function(self, info_queue, card)
-        local current = math.floor(((G.GAME and G.GAME.dollars or 0) + (G.GAME and G.GAME.dollar_buffer or 0)) / 5)
+        local current = 3 * math.floor(((G.GAME and G.GAME.dollars or 0) + (G.GAME and G.GAME.dollar_buffer or 0)) / 5)
         return { vars = { 3, 5, current } }
     end,
     calculate = function(self, card, context)
         if context.individual and context.cardarea == G.play and
             (context.other_card:is_suit('Spades') or context.other_card:is_suit('Clubs')) then
-            local chips = math.floor(((G.GAME.dollars or 0) + (G.GAME.dollar_buffer or 0)) / 5)
+            local chips = 3 * math.floor(((G.GAME.dollars or 0) + (G.GAME.dollar_buffer or 0)) / 5)
             if chips > 0 then
                 return { chips = chips }
             end
@@ -909,8 +914,7 @@ SMODS.Joker:take_ownership('matador', {
         return { vars = { card.ability.extra } }
     end,
     calculate = function(self, card, context)
-        if context.after and not context.blueprint
-            and G.GAME.blind and G.GAME.blind.boss then
+        if context.after and G.GAME.blind and G.GAME.blind.boss then
             return {
                 dollars = card.ability.extra,
                 message = localize { type = 'variable', key = 'a_dollars', vars = { card.ability.extra } },
@@ -1092,7 +1096,7 @@ SMODS.Joker:take_ownership('drunkard', {
     calculate = function(self, card, context)
         if context.setting_blind then
             ease_discard(self.config.extra.discards)
-            return { message = localize('k_plus_discard'), colour = G.C.RED }
+            return { message = localize{type='variable', key='a_discards', vars={self.config.extra.discards}}, colour = G.C.RED }
         end
     end,
 }, false)
@@ -1157,8 +1161,16 @@ SMODS.Joker:take_ownership('merry_andy', {
     calculate = function(self, card, context)
         if context.setting_blind then
             ease_discard(self.config.extra.discards)
-            return { message = localize('k_plus_discard'), colour = G.C.RED }
+            return { message = localize{type='variable', key='a_discards', vars={self.config.extra.discards}}, colour = G.C.RED }
         end
     end,
 }, false)
 end -- REB4LANCED.config.merry_andy_enhanced
+
+-- Obelisk: X0.25 per consecutive most-played hand (vanilla X0.2)
+-- patches.lua cannot set config.extra = 0.25 because vanilla config.extra is a table
+if REB4LANCED.config.obelisk_enhanced then
+SMODS.Joker:take_ownership('obelisk', {
+    config = { extra = 0.25, x_mult = 1 },
+}, false)
+end -- REB4LANCED.config.obelisk_enhanced
