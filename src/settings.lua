@@ -71,6 +71,7 @@ local defaults = {
     checkered_enhanced = false,
     anaglyph_enhanced = false,
     painted_mode = 1,
+    black_deck_enhanced = false,
     nebula_enhanced = false,
     -- Stake changes
     stakes_enhanced = false,
@@ -265,6 +266,7 @@ local function get_category_options(key)
             make_option_box('Checkered Deck',  'Only Spades/Hearts; Clubs/Diamonds cannot appear',           'checkered_enhanced'),
             make_option_box('Anaglyph Deck',   'All tags gained are doubled (including Double Tags)',         'anaglyph_enhanced'),
             make_cycle_box('Painted Deck', 'painted_mode', { 'Vanilla', '-1 Hand/Round', '-1 Discard/Round' }),
+            make_option_box('Black Deck',      'Start at Ante 0; keep -1 hand, +1 joker slot',               'black_deck_enhanced'),
             make_option_box('Nebula Deck',     'No -1 consumable slot penalty',                              'nebula_enhanced'),
         }
     elseif key == 'enhancements' then

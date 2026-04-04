@@ -644,6 +644,9 @@ SMODS.Joker:take_ownership('diet_cola', {
         return { vars = { tag_name, 'at end of round (' .. uses .. ' uses left)' } }
     end,
     calculate = function(self, card, context)
+        if context.selling_self then
+            return true  -- suppress vanilla sell Double Tag; our version fires at end of round
+        end
         if context.end_of_round and context.game_over == false and context.main_eval and not context.blueprint then
             card.ability.extra.tags_remaining = card.ability.extra.tags_remaining - 1
             G.E_MANAGER:add_event(Event({
@@ -689,6 +692,7 @@ SMODS.Joker:take_ownership('constellation', {
             card.ability.Xmult_mod = card.ability.extra.Xmult_mod or 0.1
             card.ability.extra = card.ability.extra.Xmult or 1
         end
+        card.ability.Xmult_mod = card.ability.Xmult_mod or 0.1
         return { vars = { card.ability.Xmult_mod, card.ability.extra } }
     end,
     calculate = function(self, card, context)
@@ -697,6 +701,7 @@ SMODS.Joker:take_ownership('constellation', {
             card.ability.Xmult_mod = card.ability.extra.Xmult_mod or 0.1
             card.ability.extra = card.ability.extra.Xmult or 1
         end
+        card.ability.Xmult_mod = card.ability.Xmult_mod or 0.1
         if context.joker_main then
             return { xmult = card.ability.extra }
         end
@@ -704,7 +709,20 @@ SMODS.Joker:take_ownership('constellation', {
 }, false)
 end -- REB4LANCED.config.constellation_enhanced
 
--- Splash: every played card counts in scoring; debuffs cleared before hand scores
+-- To Do List: $5 per scored hand (up from $4); stat patched in patches.lua
+if REB4LANCED.config.todo_list_enhanced then
+SMODS.Joker:take_ownership('todo_list', {
+    loc_txt = {
+        name = 'To Do List',
+        text = {
+            'Earn {C:money}$#1#',
+            'if played hand is a {C:attention}#2#',
+        },
+    },
+}, false)
+end
+
+
 if REB4LANCED.config.splash_enhanced then
 SMODS.Joker:take_ownership('splash', {
     loc_txt = {
@@ -1146,7 +1164,7 @@ end -- REB4LANCED.config.drivers_license_enhanced
 if REB4LANCED.config.merry_andy_enhanced then
 SMODS.Joker:take_ownership('merry_andy', {
     blueprint_compat = true,
-    config = { extra = { discards = 3 } },
+    config = { extra = { discards = 3 }, d_size = 0, h_size = -1 },
     loc_txt = {
         name = 'Merry Andy',
         text = {
@@ -1160,8 +1178,8 @@ SMODS.Joker:take_ownership('merry_andy', {
     end,
     calculate = function(self, card, context)
         if context.setting_blind then
-            ease_discard(self.config.extra.discards)
-            return { message = localize{type='variable', key='a_discards', vars={self.config.extra.discards}}, colour = G.C.RED }
+            ease_discard(card.ability.extra.discards)
+            return { message = localize{type='variable', key='a_discards', vars={card.ability.extra.discards}}, colour = G.C.RED }
         end
     end,
 }, false)

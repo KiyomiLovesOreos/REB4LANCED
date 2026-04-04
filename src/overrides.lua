@@ -299,6 +299,23 @@ function Game:update(dt)
     end
 end
 
+-- Black Deck: apply ante 0 after start_run initializes everything
+if REB4LANCED.config.black_deck_enhanced then
+    local reb4l_orig_start_run = Game.start_run
+    function Game:start_run(args)
+        reb4l_orig_start_run(self, args)
+        if self.GAME and self.GAME.modifiers and self.GAME.modifiers.reb4l_start_ante_zero
+            and not (args and args.savetext) then
+            self.GAME.round_resets.ante = 0
+            self.GAME.round_resets.ante_disp = number_format(0)
+            self.GAME.round_resets.blind_ante = 0
+            self.GAME.round_resets.blind_choices.Boss = get_new_boss()
+            self.GAME.round_resets.blind_tags.Small = get_next_tag_key()
+            self.GAME.round_resets.blind_tags.Big = get_next_tag_key()
+        end
+    end
+end
+
 -- create_card_for_shop override for Magic Trick / Illusion voucher reworks
 -- Magic Trick: playing cards may spawn with random enhancement, edition, or seal
 -- Illusion: playing cards are clones of a random card from the player's deck (no upgrade rerolls)
@@ -415,9 +432,9 @@ local reb4l_base_chips = {
     [3] = {  300,   900,  2400,  6400, 14500,  27000,  49000,  75000 },  -- Green
     [4] = {  300,   950,  2700,  7400, 17000,  32000,  60000,  90000 },  -- Black
     [5] = {  300,  1000,  3000,  8600, 20000,  39000,  75000, 110000 },  -- Blue
-    [6] = {  300,  1050,  3400, 10000, 24000,  50000,  95000, 135000 },  -- Purple
-    [7] = {  300,  1125,  3900, 12000, 30000,  65000, 125000, 165000 },  -- Orange
-    [8] = {  300,  1200,  4500, 14500, 38000,  85000, 160000, 200000 },  -- Gold
+    [6] = {  300,  1050,  3400, 10000, 23000,  45000,  85000, 130000 },  -- Purple
+    [7] = {  300,  1125,  3900, 12000, 25000,  50000, 100000, 160000 },  -- Orange
+    [8] = {  300,  1200,  4500, 14000, 30000,  65000, 130000, 200000 },  -- Gold
 }
 
 -- Vanilla White Stake Small Blind values for antes 9-14.
@@ -598,13 +615,18 @@ end
 
 
 local reb4l_orig_level_up_hand = level_up_hand
+local reb4l_luh_depth = 0
 function level_up_hand(card, hand, instant, amount, statustext)
+    local is_top = reb4l_luh_depth == 0
+    reb4l_luh_depth = reb4l_luh_depth + 1
     reb4l_orig_level_up_hand(card, hand, instant, amount, statustext)
+    reb4l_luh_depth = reb4l_luh_depth - 1
+    if not is_top then return end  -- recursive call from SMODS internals; skip our additions
     local levels = (amount and amount > 0) and amount or 1
     if G.jokers then
         for _, joker in ipairs(G.jokers.cards) do
             if joker.config.center.key == 'j_constellation' and not joker.debuff then
-                -- Migrate old save: ability.extra was {Xmult=n, Xmult_mod=0.1}
+                joker.ability.Xmult_mod = joker.ability.Xmult_mod or 0.1
                 if type(joker.ability.extra) == 'table' then
                     joker.ability.Xmult_mod = joker.ability.extra.Xmult_mod or 0.1
                     joker.ability.extra = joker.ability.extra.Xmult or 1
@@ -614,7 +636,6 @@ function level_up_hand(card, hand, instant, amount, statustext)
             end
         end
     end
-    -- Satellite mode 3: fire per-level-up earning through SMODS context so Blueprint/Brainstorm copy it
     if REB4LANCED.config.satellite_mode == 3 then
         SMODS.calculate_context({ satellite_level_up = true, levels = levels })
     end
