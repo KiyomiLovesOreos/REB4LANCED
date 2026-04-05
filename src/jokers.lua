@@ -687,19 +687,27 @@ SMODS.Joker:take_ownership('constellation', {
         },
     },
     loc_vars = function(self, info_queue, card)
-        -- Migrate old save: ability.extra was {Xmult=n, Xmult_mod=0.1}
+        -- Migrate: vanilla table {Xmult=n,Xmult_mod=0.1} → our flat Xmult in extra
         if type(card.ability.extra) == 'table' then
             card.ability.Xmult_mod = card.ability.extra.Xmult_mod or 0.1
             card.ability.extra = card.ability.extra.Xmult or 1
+        -- Migrate: last session stored increment (0.1) in extra, Xmult in x_mult
+        elseif type(card.ability.extra) == 'number' and card.ability.extra < 0.5 then
+            card.ability.Xmult_mod = card.ability.extra
+            card.ability.extra = card.ability.x_mult or 1
         end
         card.ability.Xmult_mod = card.ability.Xmult_mod or 0.1
-        return { vars = { card.ability.Xmult_mod, card.ability.extra } }
+        return { vars = { card.ability.Xmult_mod, card.ability.extra or 1 } }
     end,
     calculate = function(self, card, context)
-        -- Migrate old save: ability.extra was {Xmult=n, Xmult_mod=0.1}
+        -- Migrate: vanilla table {Xmult=n,Xmult_mod=0.1} → our flat Xmult in extra
         if type(card.ability.extra) == 'table' then
             card.ability.Xmult_mod = card.ability.extra.Xmult_mod or 0.1
             card.ability.extra = card.ability.extra.Xmult or 1
+        -- Migrate: last session stored increment (0.1) in extra, Xmult in x_mult
+        elseif type(card.ability.extra) == 'number' and card.ability.extra < 0.5 then
+            card.ability.Xmult_mod = card.ability.extra
+            card.ability.extra = card.ability.x_mult or 1
         end
         card.ability.Xmult_mod = card.ability.Xmult_mod or 0.1
         if context.joker_main then

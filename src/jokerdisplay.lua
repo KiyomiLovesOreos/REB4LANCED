@@ -395,16 +395,20 @@ if REB4LANCED.config.diet_cola_enhanced then
 end
 
 -- ─── Constellation ────────────────────────────────────────────────────────────
--- Xmult stored in card.ability.extra (bare number; vanilla used card.ability.x_mult).
+-- Xmult stored in card.ability.extra (current value); Xmult_mod is the per-level increment.
+-- Incremented manually in overrides.lua level_up_hand (vanilla handling disabled by SMODS).
 JokerDisplay.Definitions["j_constellation"] = {
     text = {
         {
             border_nodes = {
                 { text = "X" },
-                { ref_table = "card.ability", ref_value = "extra", retrigger_type = "exp" },
+                { ref_table = "card.joker_display_values", ref_value = "xmult", retrigger_type = "exp" },
             },
         },
     },
+    calc_function = function(card)
+        card.joker_display_values.xmult = card.ability.extra or 1
+    end,
 }
 
 -- ─── Superposition ────────────────────────────────────────────────────────────

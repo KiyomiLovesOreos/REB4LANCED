@@ -75,6 +75,7 @@ local defaults = {
     nebula_enhanced = false,
     -- Stake changes
     stakes_enhanced = false,
+    stake_scaling_enhanced = false,
     perishable_enhanced = false,
     -- Boss blind changes
     wall_enhanced = false,
@@ -205,6 +206,7 @@ local PRESET_KEYS = {
     { 'wall_enhanced',            'bool'      },
     -- Misc
     { 'stakes_enhanced',          'bool'      },
+    { 'stake_scaling_enhanced',   'bool'      },
     { 'perishable_enhanced',      'bool'      },
     { 'interest_on_skip',         'bool'      },
     { 'standard_packs_enhanced',  'bool'      },
@@ -302,9 +304,10 @@ local SUGGESTED = {
     -- Editions
     holo_enhanced            = true,
     -- Bosses
-    wall_enhanced            = true,
+    wall_enhanced            = false,
     -- Misc
     stakes_enhanced          = true,
+    stake_scaling_enhanced   = true,
     perishable_enhanced      = true,
     interest_on_skip         = true,
     standard_packs_enhanced  = true,
@@ -535,7 +538,8 @@ local function get_category_options(key)
         }
     elseif key == 'misc' then
         return {
-            make_option_box('Stake Changes',     'All stake reworks (scaling, modifiers, reroll/interest/showdown changes)', 'stakes_enhanced'),
+            make_option_box('Stake Changes',     'All stake reworks (modifiers, reroll/interest/showdown changes)', 'stakes_enhanced'),
+            make_option_box('Stake Scaling',     'Per-stake blind chip scaling; vanilla jumps at Green and Purple if off', 'stake_scaling_enhanced'),
             make_option_box('Perishable Rework', 'Debuffs after 6 rounds instead of 5', 'perishable_enhanced'),
             make_option_box('Interest on Skip',  'Earn interest when skipping a blind',  'interest_on_skip'),
             make_option_box('Standard Packs',    '4/6/6 cards',                          'standard_packs_enhanced'),

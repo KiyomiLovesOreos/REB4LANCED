@@ -460,10 +460,10 @@ end
 
 -- Per-stake blind chip scaling: override get_blind_amount so both the blind select
 -- screen and Blind:set_blind (which calls this function) see stake-appropriate values.
--- Falls back to vanilla if stakes_enhanced is off, no active game, or mod stake.
+-- Falls back to vanilla if stake_scaling_enhanced is off, no active game, or mod stake.
 local reb4l_orig_get_blind_amount = get_blind_amount
 function get_blind_amount(ante)
-    if REB4LANCED.config.stakes_enhanced
+    if REB4LANCED.config.stake_scaling_enhanced
         and G.GAME and G.GAME.stake then
         local stake = reb4l_stake_index[SMODS.stake_from_index(G.GAME.stake)]
         if stake then
@@ -524,7 +524,7 @@ end
 REB4LANCED.black_reshuffle = REB4LANCED.black_reshuffle or {}
 
 local reb4l_orig_calculate_context = SMODS.calculate_context
-SMODS.calculate_context = function(ctx)
+SMODS.calculate_context = function(ctx, ...)
     if ctx.pre_discard and ctx.full_hand
         and REB4LANCED.config.stakes_enhanced
         and G.GAME and G.GAME.modifiers
@@ -533,7 +533,7 @@ SMODS.calculate_context = function(ctx)
             REB4LANCED.black_reshuffle[#REB4LANCED.black_reshuffle + 1] = c
         end
     end
-    return reb4l_orig_calculate_context(ctx)
+    return reb4l_orig_calculate_context(ctx, ...)
 end
 
 -- Wrap draw_from_deck_to_hand: by the time this runs, the discard animation events
@@ -619,20 +619,59 @@ local reb4l_luh_depth = 0
 function level_up_hand(card, hand, instant, amount, statustext)
     local is_top = reb4l_luh_depth == 0
     reb4l_luh_depth = reb4l_luh_depth + 1
-    reb4l_orig_level_up_hand(card, hand, instant, amount, statustext)
-    reb4l_luh_depth = reb4l_luh_depth - 1
-    if not is_top then return end  -- recursive call from SMODS internals; skip our additions
-    local levels = (amount and amount > 0) and amount or 1
-    if G.jokers then
+
+    -- Constellation: mask ability.name before vanilla runs so its deferred event skips this joker.
+    -- We handle the increment and single popup ourselves; re-masking after our event blocks
+    -- any remaining vanilla events queued by later same-frame calls (e.g. Black Hole).
+    if is_top and REB4LANCED.config.constellation_enhanced and G.jokers then
         for _, joker in ipairs(G.jokers.cards) do
-            if joker.config.center.key == 'j_constellation' and not joker.debuff then
-                joker.ability.Xmult_mod = joker.ability.Xmult_mod or 0.1
-                if type(joker.ability.extra) == 'table' then
-                    joker.ability.Xmult_mod = joker.ability.extra.Xmult_mod or 0.1
-                    joker.ability.extra = joker.ability.extra.Xmult or 1
+            if joker.config.center.key == 'j_constellation'
+               and joker.ability.name == 'Constellation' then
+                joker.ability.name = 'reb4l_constellation'
+            end
+        end
+    end
+
+    reb4l_orig_level_up_hand(card, hand, instant, amount, statustext)
+
+    reb4l_luh_depth = reb4l_luh_depth - 1
+    if not is_top then return end
+
+    local levels = tonumber(amount) or 1
+    if REB4LANCED.config.constellation_enhanced and G.jokers then
+        for _, joker in ipairs(G.jokers.cards) do
+            if joker.config.center.key == 'j_constellation' then
+                local mod = joker.ability.Xmult_mod or 0.1
+                joker.ability.reb4l_const_pending = (joker.ability.reb4l_const_pending or 0) + mod * levels
+                if not joker.reb4l_const_event_queued then
+                    joker.reb4l_const_event_queued = true
+                    G.E_MANAGER:add_event(Event({
+                        func = function()
+                            local gain = joker.ability.reb4l_const_pending or 0
+                            joker.ability.reb4l_const_pending = 0
+                            if gain > 0 then
+                                joker.ability.extra = (joker.ability.extra or 1) + gain
+                                local total = math.floor(joker.ability.extra * 10000 + 0.5) / 10000
+                                card_eval_status_text(joker, 'extra', nil, nil, nil, {
+                                    message = localize{type='variable', key='a_xmult', vars={total}},
+                                    colour = G.C.XMULT,
+                                })
+                                joker:juice_up(0.5, 0.3)
+                            end
+                            -- Re-mask to silence remaining vanilla events from same-frame calls,
+                            -- then queue a trailing unmask event after those have all fired.
+                            joker.ability.name = 'reb4l_constellation'
+                            G.E_MANAGER:add_event(Event({
+                                func = function()
+                                    joker.ability.name = 'Constellation'
+                                    joker.reb4l_const_event_queued = false
+                                    return true
+                                end
+                            }))
+                            return true
+                        end
+                    }))
                 end
-                joker.ability.extra = joker.ability.extra + joker.ability.Xmult_mod * levels
-                joker:juice_up(0.5, 0.3)
             end
         end
     end
