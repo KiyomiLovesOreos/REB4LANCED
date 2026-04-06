@@ -192,6 +192,124 @@ if REB4LANCED.config.chicot_mode == 3 then
     end
 end
 
+-- ── Fork Tag Vouchers (T1 Split Tags / T2 Fork Tags) ─────────────────────────
+-- T1 (v_reb4l_split_tag): on the blind selection screen each skippable blind
+--   shows TWO tags. The player clicks either "Skip" button; only that tag is
+--   awarded. T2 must NOT be active for this choice UI to appear.
+-- T2 (v_reb4l_fork_tag): after every skip a plain second tag is added (both
+--   keep). Works via vanilla skip_blind wrapper; T1's choice UI is hidden.
+if REB4LANCED.config.fork_tag_vouchers then
+
+    -- Helper: return (and lazily generate) the second tag key for blind_choice.
+    -- Cached in round_resets so it survives save/load; invalidated on ante change.
+    local function reb4l_get_tag2_key(blind_choice)
+        local r = G.GAME.round_resets
+        r.reb4l_blind_tags2 = r.reb4l_blind_tags2 or {}
+        if r.reb4l_blind_tags2._ante ~= r.ante then
+            r.reb4l_blind_tags2 = { _ante = r.ante }
+        end
+        if not r.reb4l_blind_tags2[blind_choice] then
+            r.reb4l_blind_tags2[blind_choice] = get_next_tag_key()
+        end
+        return r.reb4l_blind_tags2[blind_choice]
+    end
+
+    -- ── T1 UI: wrap create_UIBox_blind_tag to show a second skip option ──────
+    local reb4l_orig_create_blind_tag = create_UIBox_blind_tag
+    function create_UIBox_blind_tag(blind_choice, run_info)
+        local result = reb4l_orig_create_blind_tag(blind_choice, run_info)
+        -- Only inject second option when T1 active, T2 NOT active, not run-info mode.
+        if not result or run_info then return result end
+        if not (G.GAME and G.GAME.used_vouchers
+                and G.GAME.used_vouchers['v_reb4l_split_tag']
+                and not G.GAME.used_vouchers['v_reb4l_fork_tag']) then
+            return result
+        end
+
+        local _tag2 = Tag(reb4l_get_tag2_key(blind_choice), nil, blind_choice)
+        local _tag2_ui, _tag2_sprite = _tag2:generate_UI()
+        _tag2_sprite.states.collide.can = false   -- matches vanilla's skip-UI behaviour
+
+        local second_row = {n=G.UIT.R, config={id='tag_container_fork', ref_table=_tag2, align="cm"}, nodes={
+            {n=G.UIT.R, config={align='tm', minh=0.65}, nodes={
+                {n=G.UIT.T, config={text=localize('k_or'), scale=0.55, colour=G.C.WHITE, shadow=true}},
+            }},
+            {n=G.UIT.R, config={id='tag_'..blind_choice..'_2', align="cm", r=0.1, padding=0.1, minw=1, can_collide=true, ref_table=_tag2_sprite}, nodes={
+                {n=G.UIT.C, config={id='tag_desc_2', align="cm", minh=1}, nodes={_tag2_ui}},
+                {n=G.UIT.C, config={align="cm", colour=G.C.UI.BACKGROUND_INACTIVE, minh=0.6, minw=2, maxw=2, padding=0.07, r=0.1, shadow=true, hover=true, one_press=true, button='skip_blind_fork', func='hover_tag_proxy', ref_table=_tag2}, nodes={
+                    {n=G.UIT.T, config={text=localize('b_skip_blind'), scale=0.4, colour=G.C.UI.TEXT_INACTIVE}},
+                }},
+            }},
+        }}
+
+        return {n=G.UIT.R, config={align="cm"}, nodes={result, second_row}}
+    end
+
+    -- skip_blind_fork: mirror of vanilla's skip_blind but consumes tag_container_fork.
+    -- Called when the player clicks the second "Skip" button in the T1 choice UI.
+    G.FUNCS.skip_blind_fork = function(e)
+        if G.CONTROLLER.locks.skip_blind then return end   -- prevent double-fire
+        stop_use()
+        G.CONTROLLER.locks.skip_blind = true
+        G.E_MANAGER:add_event(Event({
+            no_delete  = true,
+            trigger    = 'after',
+            blocking   = false, blockable = false,
+            delay      = 2.5,
+            timer      = 'TOTAL',
+            func = function() G.CONTROLLER.locks.skip_blind = nil; return true end,
+        }))
+        local _tag = e.UIBox:get_UIE_by_ID('tag_container_fork')
+        G.GAME.skips = (G.GAME.skips or 0) + 1
+        if _tag then
+            -- Honour Chicot echo-tag tracking (active only when chicot_mode == 3).
+            if G.GAME then G.GAME.reb4l_tracking_skip = true end
+            add_tag(_tag.config.ref_table)
+            if G.GAME then G.GAME.reb4l_tracking_skip = false end
+
+            local skipped = G.GAME.blind_on_deck or 'Small'
+            local skip_to = skipped == 'Small' and 'Big'
+                         or skipped == 'Big'   and 'Boss'
+                         or 'Boss'
+            G.GAME.round_resets.blind_states[skipped] = 'Skipped'
+            G.GAME.round_resets.blind_states[skip_to] = 'Select'
+            G.GAME.blind_on_deck = skip_to
+            play_sound('generic1')
+            G.E_MANAGER:add_event(Event({
+                trigger = 'immediate',
+                func = function()
+                    delay(0.3)
+                    SMODS.calculate_context({skip_blind = true})
+                    save_run()
+                    for i = 1, #G.GAME.tags do
+                        G.GAME.tags[i]:apply_to_run({type = 'immediate'})
+                    end
+                    for i = 1, #G.GAME.tags do
+                        if G.GAME.tags[i]:apply_to_run({type = 'new_blind_choice'}) then break end
+                    end
+                    return true
+                end,
+            }))
+        end
+    end
+
+    -- ── T2: add a second tag after every vanilla skip ─────────────────────────
+    local reb4l_orig_skip_t2 = G.FUNCS.skip_blind
+    G.FUNCS.skip_blind = function(e)
+        reb4l_orig_skip_t2(e)
+        if G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_reb4l_fork_tag'] then
+            G.E_MANAGER:add_event(Event({
+                trigger = 'after',
+                func = function()
+                    add_tag(Tag(get_next_tag_key()))
+                    return true
+                end,
+            }))
+        end
+    end
+
+end -- REB4LANCED.config.fork_tag_vouchers
+
 -- Edition Tags: apply pending edition when buying an editionless joker from the shop.
 -- The apply function in tags.lua blocks vanilla's new_blind_choice and store_joker_modify
 -- contexts (returning true keeps the tag alive without triggering it). This hook fires
@@ -316,14 +434,44 @@ if REB4LANCED.config.black_deck_enhanced then
     end
 end
 
+-- ── Magic Trick / Illusion helpers (modelled after QoL Bundle) ───────────────
+
+local function reb4l_try_apply_enhancement(card, seed_key)
+    local enh = SMODS.poll_enhancement({ key = seed_key, mod = 2.5 })
+    if enh then card:set_ability(G.P_CENTERS[enh]) end
+end
+
+local function reb4l_try_apply_edition(card, seed_key)
+    local ed = poll_edition(seed_key, 1, false, false)
+    if ed then card:set_edition(ed) end
+end
+
+local function reb4l_try_apply_seal(card, seed_key)
+    local seal = SMODS.poll_seal({ key = seed_key, mod = 10, guaranteed = false })
+    if seal then card:set_seal(seal) end
+end
+
+local function reb4l_recalculate_playing_card_cost(card)
+    local extra = 0
+    if card.edition then extra = extra + (card.edition.polychrome and 3 or 2) end
+    if card.seal    then extra = extra + 1 end
+    if card.ability and card.ability.set == 'Enhanced' then extra = extra + 1 end
+    card.cost = math.max(1, math.floor(
+        (card.base_cost + extra + 0.5) * (100 - G.GAME.discount_percent) / 100
+    ))
+    card.sell_cost = math.max(1, math.floor(card.cost / 2)) + (card.ability and card.ability.extra_value or 0)
+    card.sell_cost_label = card.sell_cost
+end
+
 -- create_card_for_shop override for Magic Trick / Illusion voucher reworks
 -- Magic Trick: playing cards may spawn with random enhancement, edition, or seal
--- Illusion: playing cards are clones of a random card from the player's deck (no upgrade rerolls)
+-- Illusion: playing cards are clones of a random card from the player's deck
+--   (no double set_base after set_ability — mirrors QoL Bundle's fix)
 local reb4l_orig_create_card_for_shop = create_card_for_shop
 function create_card_for_shop(area)
     local card = reb4l_orig_create_card_for_shop(area)
     if card and card.ability and (card.ability.set == 'Default' or card.ability.set == 'Enhanced') then
-        local has_magic   = G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_magic_trick']
+        local has_magic    = G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_magic_trick']
         local has_illusion = G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_illusion']
 
         if has_illusion and G.playing_cards and #G.playing_cards > 0 then
@@ -334,45 +482,26 @@ function create_card_for_shop(area)
             )
             if deck_card then
                 card:set_base(G.P_CARDS[deck_card.config.card_key])
-                if deck_card.edition  then card:set_edition(deck_card.edition) end
-                if deck_card.seal     then card:set_seal(deck_card.seal) end
+                if deck_card.edition then card:set_edition(deck_card.edition) end
+                if deck_card.seal    then card:set_seal(deck_card.seal) end
                 if deck_card.config.center.set == 'Enhanced' then
                     card:set_ability(deck_card.config.center)
-                    if card.config.card_key and G.P_CARDS[card.config.card_key] then
-                        card:set_base(G.P_CARDS[card.config.card_key])
-                    end
+                    -- Do NOT call set_base again — it would reset the enhancement
                 end
+                -- Attempt improvements on top of clone
+                reb4l_try_apply_enhancement(card, 'reb4l_ill_enh')
+                reb4l_try_apply_edition(card, 'reb4l_ill_ed')
+                reb4l_try_apply_seal(card, 'reb4l_ill_seal')
             end
-        elseif has_magic then
-            -- Random enhancement (~40% chance via mod=2.5)
-            local enh = SMODS.poll_enhancement({ key = 'reb4l_magic_enh', mod = 2.5 })
-            if enh then
-                card:set_ability(G.P_CENTERS[enh])
-                if card.config.card_key and G.P_CARDS[card.config.card_key] then
-                    card:set_base(G.P_CARDS[card.config.card_key])
-                end
-            end
-            -- Random edition
-            local ed = poll_edition('reb4l_magic_ed', 1, false, false)
-            if ed then card:set_edition(ed) end
-            -- Random seal (~20% chance via mod=10)
-            local seal = SMODS.poll_seal({ key = 'reb4l_magic_seal', mod = 10 })
-            if seal then card:set_seal(seal) end
-        end
+            reb4l_recalculate_playing_card_cost(card)
 
-        -- Recalculate cost if anything was added
-        if has_magic or has_illusion then
-            local extra = 0
-            if card.edition then
-                extra = extra + (card.edition.polychrome and 3 or 2)
-            end
-            if card.seal then extra = extra + 1 end
-            if card.ability.set == 'Enhanced' then extra = extra + 1 end
-            card.cost = math.max(1, math.floor(
-                (card.base_cost + extra + 0.5) * (100 - G.GAME.discount_percent) / 100
-            ))
-            card.sell_cost = math.max(1, math.floor(card.cost / 2)) + (card.ability.extra_value or 0)
-            card.sell_cost_label = card.sell_cost
+        elseif has_magic then
+            -- Random enhancement (~40% chance), edition, seal
+            reb4l_try_apply_enhancement(card, 'reb4l_magic_enh')
+            -- Do NOT call set_base after set_ability — it would reset the enhancement
+            reb4l_try_apply_edition(card, 'reb4l_magic_ed')
+            reb4l_try_apply_seal(card, 'reb4l_magic_seal')
+            reb4l_recalculate_playing_card_cost(card)
         end
     end
 
@@ -613,6 +742,16 @@ if REB4LANCED.config.anaglyph_enhanced then
     end
 end
 
+
+-- Anchor Deck: lock G.hand size (both card_limit and round_resets.hand_size)
+-- by making change_size a no-op on G.hand whenever the anchor deck is active.
+local reb4l_orig_change_size = CardArea.change_size
+function CardArea:change_size(n)
+    if self == G.hand and G.GAME and G.GAME.reb4l_anchor_deck then
+        return
+    end
+    return reb4l_orig_change_size(self, n)
+end
 
 local reb4l_orig_level_up_hand = level_up_hand
 local reb4l_luh_depth = 0

@@ -92,9 +92,19 @@ SMODS.Tag:take_ownership('polychrome', {
 end -- REB4LANCED.config.edition_tags_enhanced
 
 -- Pack Tags (standard, charm, meteor, buffoon, ethereal):
---   Adds mega pack to next shop instead of opening immediately.
-
+--   Enhanced: adds mega pack to next shop instead of opening immediately.
+--   When disabled, vanilla handles these entirely — no take_ownership at all.
 if REB4LANCED.config.pack_tags_enhanced then
+
+local function reb4l_shop_pack(tag, color, key)
+    tag:yep('+', color, function()
+        local card = SMODS.add_booster_to_shop(key)
+        if card then card.ability.couponed = true; card:set_cost() end
+        return true
+    end)
+    tag.triggered = true
+    return true
+end
 
 SMODS.Tag:take_ownership('standard', {
     min_ante = 2,
@@ -111,13 +121,7 @@ SMODS.Tag:take_ownership('standard', {
     apply = function(self, tag, context)
         if context.type == 'new_blind_choice' then return true end
         if context.type == 'shop_final_pass' and G.shop and G.shop_booster then
-            tag:yep('+', G.C.SECONDARY_SET.Spectral, function()
-                local card = SMODS.add_booster_to_shop('p_standard_mega_1')
-                if card then card.ability.couponed = true; card:set_cost() end
-                return true
-            end)
-            tag.triggered = true
-            return true
+            return reb4l_shop_pack(tag, G.C.SECONDARY_SET.Spectral, 'p_standard_mega_1')
         end
     end,
 }, false)
@@ -134,16 +138,10 @@ SMODS.Tag:take_ownership('charm', {
         info_queue[#info_queue + 1] = G.P_CENTERS.p_arcana_mega_1
     end,
     apply = function(self, tag, context)
+        local key = pseudorandom_element({'p_arcana_mega_1', 'p_arcana_mega_2'}, pseudoseed('reb4l_charm'))
         if context.type == 'new_blind_choice' then return true end
         if context.type == 'shop_final_pass' and G.shop and G.shop_booster then
-            local key = pseudorandom_element({'p_arcana_mega_1', 'p_arcana_mega_2'}, pseudoseed('reb4l_charm'))
-            tag:yep('+', G.C.PURPLE, function()
-                local card = SMODS.add_booster_to_shop(key)
-                if card then card.ability.couponed = true; card:set_cost() end
-                return true
-            end)
-            tag.triggered = true
-            return true
+            return reb4l_shop_pack(tag, G.C.PURPLE, key)
         end
     end,
 }, false)
@@ -161,16 +159,10 @@ SMODS.Tag:take_ownership('meteor', {
         info_queue[#info_queue + 1] = G.P_CENTERS.p_celestial_mega_1
     end,
     apply = function(self, tag, context)
+        local key = pseudorandom_element({'p_celestial_mega_1', 'p_celestial_mega_2'}, pseudoseed('reb4l_meteor'))
         if context.type == 'new_blind_choice' then return true end
         if context.type == 'shop_final_pass' and G.shop and G.shop_booster then
-            local key = pseudorandom_element({'p_celestial_mega_1', 'p_celestial_mega_2'}, pseudoseed('reb4l_meteor'))
-            tag:yep('+', G.C.SECONDARY_SET.Planet, function()
-                local card = SMODS.add_booster_to_shop(key)
-                if card then card.ability.couponed = true; card:set_cost() end
-                return true
-            end)
-            tag.triggered = true
-            return true
+            return reb4l_shop_pack(tag, G.C.SECONDARY_SET.Planet, key)
         end
     end,
 }, false)
@@ -190,13 +182,7 @@ SMODS.Tag:take_ownership('buffoon', {
     apply = function(self, tag, context)
         if context.type == 'new_blind_choice' then return true end
         if context.type == 'shop_final_pass' and G.shop and G.shop_booster then
-            tag:yep('+', G.C.SECONDARY_SET.Spectral, function()
-                local card = SMODS.add_booster_to_shop('p_buffoon_mega_1')
-                if card then card.ability.couponed = true; card:set_cost() end
-                return true
-            end)
-            tag.triggered = true
-            return true
+            return reb4l_shop_pack(tag, G.C.SECONDARY_SET.Spectral, 'p_buffoon_mega_1')
         end
     end,
 }, false)
@@ -216,13 +202,7 @@ SMODS.Tag:take_ownership('ethereal', {
     apply = function(self, tag, context)
         if context.type == 'new_blind_choice' then return true end
         if context.type == 'shop_final_pass' and G.shop and G.shop_booster then
-            tag:yep('+', G.C.SECONDARY_SET.Spectral, function()
-                local card = SMODS.add_booster_to_shop('p_spectral_normal_1')
-                if card then card.ability.couponed = true; card:set_cost() end
-                return true
-            end)
-            tag.triggered = true
-            return true
+            return reb4l_shop_pack(tag, G.C.SECONDARY_SET.Spectral, 'p_spectral_normal_1')
         end
     end,
 }, false)

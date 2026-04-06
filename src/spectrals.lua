@@ -137,18 +137,31 @@ SMODS.Consumable:take_ownership('ectoplasm', {
             trigger = 'after',
             delay = 0.4,
             func = function()
-                local roll = math.floor(pseudorandom('reb4l_ectoplasm') * 3) + 1
-                if roll == 1 then
-                    G.GAME.round_resets.hands = G.GAME.round_resets.hands - 1
-                    ease_hands_played(-1)
-                elseif roll == 2 then
-                    G.GAME.round_resets.discards = G.GAME.round_resets.discards - 1
-                    ease_discard(-1)
-                else
-                    G.hand:change_size(-1)
+                -- Build pool of options that still have room to be reduced (min 1).
+                local options = {}
+                if G.GAME.round_resets.hands > 1 then
+                    options[#options + 1] = 1
+                end
+                if G.GAME.round_resets.discards > 1 then
+                    options[#options + 1] = 2
+                end
+                if G.hand.config.card_limit > 1 then
+                    options[#options + 1] = 3
+                end
+                if #options > 0 then
+                    local roll = pseudorandom_element(options, pseudoseed('reb4l_ectoplasm'))
+                    if roll == 1 then
+                        G.GAME.round_resets.hands = G.GAME.round_resets.hands - 1
+                        ease_hands_played(-1)
+                    elseif roll == 2 then
+                        G.GAME.round_resets.discards = G.GAME.round_resets.discards - 1
+                        ease_discard(-1)
+                    else
+                        G.hand:change_size(-1)
+                    end
                 end
                 if #editionless_jokers > 0 then
-                    local eligible_card = pseudorandom_element(editionless_jokers, 'ectoplasm')
+                    local eligible_card = pseudorandom_element(editionless_jokers, pseudoseed('ectoplasm'))
                     eligible_card:set_edition({ negative = true })
                 end
                 card:juice_up(0.3, 0.5)
@@ -157,7 +170,11 @@ SMODS.Consumable:take_ownership('ectoplasm', {
         }))
     end,
     can_use = function(self, card)
-        return next(SMODS.Edition:get_edition_cards(G.jokers, true))
+        -- Usable if there's an editionless joker AND at least one thing to reduce.
+        if not next(SMODS.Edition:get_edition_cards(G.jokers, true)) then return false end
+        return G.GAME.round_resets.hands > 1
+            or G.GAME.round_resets.discards > 1
+            or G.hand.config.card_limit > 1
     end,
 }, false)
 end -- REB4LANCED.config.ectoplasm_enhanced
