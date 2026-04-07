@@ -192,12 +192,9 @@ if REB4LANCED.config.chicot_mode == 3 then
     end
 end
 
--- ── Fork Tag Vouchers (T1 Split Tags / T2 Fork Tags) ─────────────────────────
--- T1 (v_reb4l_split_tag): on the blind selection screen each skippable blind
---   shows TWO tags. The player clicks either "Skip" button; only that tag is
---   awarded. T2 must NOT be active for this choice UI to appear.
--- T2 (v_reb4l_fork_tag): after every skip a plain second tag is added (both
---   keep). Works via vanilla skip_blind wrapper; T1's choice UI is hidden.
+-- ── Fork Tag Vouchers (Branching-style blind tag picker) ─────────────────────
+-- T1 (v_reb4l_split_tag): current Small/Big blind shows 3 tag choices; skip grants 1.
+-- T2 (v_reb4l_fork_tag): same 3 tag choices, but skip grants 2 selected tags.
 if REB4LANCED.config.fork_tag_vouchers then
 
     local function reb4l_blind_choice_is_current(blind_choice)
@@ -208,76 +205,308 @@ if REB4LANCED.config.fork_tag_vouchers then
             and G.GAME.round_resets.blind_states[blind_choice] == 'Select'
     end
 
-    -- Helper: return (and lazily generate) the second tag key for blind_choice.
-    -- Cached in round_resets so it survives save/load; invalidated on ante change.
-    local function reb4l_get_tag2_key(blind_choice)
-        local r = G.GAME.round_resets
-        r.reb4l_blind_tags2 = r.reb4l_blind_tags2 or {}
-        if r.reb4l_blind_tags2._ante ~= r.ante then
-            r.reb4l_blind_tags2 = { _ante = r.ante }
+    local function reb4l_get_fork_pick_count()
+        if not (G.GAME and G.GAME.used_vouchers) then return 0 end
+        if G.GAME.used_vouchers['v_reb4l_fork_tag'] then return 0 end
+        if G.GAME.used_vouchers['v_reb4l_split_tag'] then return 1 end
+        return 0
+    end
+
+    local function reb4l_t1_active()
+        return reb4l_get_fork_pick_count() == 1
+    end
+
+    local function reb4l_t2_active()
+        return G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_reb4l_fork_tag']
+    end
+
+    local function reb4l_is_fork_tag_list(ref_table)
+        return type(ref_table) == 'table'
+            and type(ref_table[1]) == 'table'
+            and (ref_table[1].get_uibox_table or ref_table[1].key)
+    end
+
+    local function reb4l_clear_fork_selection(blind_choice)
+        if not (G.GAME and G.GAME.round_resets and G.GAME.round_resets.reb4l_blind_tag_choices) then
+            if G.GAME then G.GAME.reb4l_fork_selected_index = nil end
+            return
         end
-        local tag1_key = r.blind_tags and r.blind_tags[blind_choice]
-        if not r.reb4l_blind_tags2[blind_choice] or r.reb4l_blind_tags2[blind_choice] == tag1_key then
-            local tag2_key = get_next_tag_key()
+        G.GAME.reb4l_fork_selected_index = nil
+        if blind_choice then
+            local state = G.GAME.round_resets.reb4l_blind_tag_choices[blind_choice]
+            if state then state.selected = {} end
+            return
+        end
+        for k, state in pairs(G.GAME.round_resets.reb4l_blind_tag_choices) do
+            if k ~= '_ante' and type(state) == 'table' then
+                state.selected = {}
+            end
+        end
+    end
+
+    local function reb4l_clear_fork_popups(blind_choice)
+        if not (blind_choice and G.blind_select_opts and G.blind_select_opts[string.lower(blind_choice)]) then
+            return
+        end
+        local ui_box = G.blind_select_opts[string.lower(blind_choice)]
+        if not ui_box or not ui_box.get_UIE_by_ID then return end
+
+        local tag_row = ui_box:get_UIE_by_ID('tag_' .. blind_choice)
+        if tag_row and tag_row.alert then
+            tag_row.alert:remove()
+            tag_row.alert = nil
+        end
+        if tag_row and tag_row.children then
+            if tag_row.children[2] and tag_row.children[2].alert then
+                tag_row.children[2].alert:remove()
+                tag_row.children[2].alert = nil
+            end
+            if tag_row.children[1] and tag_row.children[1].children then
+                for i = 1, #tag_row.children[1].children do
+                    local child = tag_row.children[1].children[i]
+                    if child and child.alert then
+                        child.alert:remove()
+                        child.alert = nil
+                    end
+                end
+            end
+        end
+    end
+
+    -- Cache the 3 tag options per blind in round_resets so they survive save/load.
+    local function reb4l_get_blind_tag_choice_state(blind_choice)
+        local r = G.GAME.round_resets
+        r.reb4l_blind_tag_choices = r.reb4l_blind_tag_choices or {}
+        if r.reb4l_blind_tag_choices._ante ~= r.ante then
+            r.reb4l_blind_tag_choices = { _ante = r.ante }
+        end
+        local state = r.reb4l_blind_tag_choices[blind_choice]
+        if not state or not state.keys or #state.keys < 3 then
+            local tag1_key = r.blind_tags and r.blind_tags[blind_choice]
+            if not tag1_key then return nil end
+
+            local keys = { tag1_key }
+            local seen = { [tag1_key] = true }
             local guard = 0
-            while tag1_key and tag2_key == tag1_key and guard < 20 do
-                tag2_key = get_next_tag_key()
+            while #keys < 3 and guard < 50 do
+                local tag_key = get_next_tag_key()
+                if tag_key and not seen[tag_key] then
+                    keys[#keys + 1] = tag_key
+                    seen[tag_key] = true
+                end
                 guard = guard + 1
             end
-            r.reb4l_blind_tags2[blind_choice] = tag2_key
+            while #keys < 3 do
+                keys[#keys + 1] = tag1_key
+                guard = guard + 1
+            end
+            if pseudoshuffle and pseudoseed then
+                pseudoshuffle(keys, pseudoseed('reb4l_split_tag_' .. blind_choice .. '_' .. tostring(r.ante)))
+            end
+            state = { keys = keys, selected = {} }
+            r.reb4l_blind_tag_choices[blind_choice] = state
         end
-        return r.reb4l_blind_tags2[blind_choice]
+        return state
     end
 
-    local function reb4l_make_tag2_row(blind_choice, show_choice_ui)
-        local tag2 = Tag(reb4l_get_tag2_key(blind_choice), nil, blind_choice)
-        local tag2_ui, tag2_sprite = tag2:generate_UI()
-        tag2_sprite.states.collide.can = false
-
-        local row_nodes = {}
-        if show_choice_ui then
-            row_nodes[#row_nodes + 1] = {n=G.UIT.R, config={align='tm', minh=0.65}, nodes={
-                {n=G.UIT.T, config={text=localize('k_or'), scale=0.55, colour=G.C.WHITE, shadow=true}},
-            }}
+    local function reb4l_normalize_tag_selection(state, pick_count)
+        state.selected = state.selected or {}
+        local selected, seen = {}, {}
+        for _, idx in ipairs(state.selected) do
+            if state.keys[idx] and not seen[idx] then
+                selected[#selected + 1] = idx
+                seen[idx] = true
+            end
         end
+        while #selected > pick_count do
+            table.remove(selected, #selected)
+        end
+        table.sort(selected)
+        state.selected = selected
+    end
 
-        local tag_nodes = {
-            {n=G.UIT.C, config={id='tag_desc_2', align="cm", minh=1}, nodes={tag2_ui}},
-        }
-        if show_choice_ui then
-            tag_nodes[#tag_nodes + 1] = {n=G.UIT.C, config={
+    local function reb4l_sync_primary_blind_tag(blind_choice, pick_count)
+        local state = reb4l_get_blind_tag_choice_state(blind_choice)
+        if not state then return nil end
+        reb4l_normalize_tag_selection(state, pick_count)
+        if state.selected[1] and state.keys[state.selected[1]] and G.GAME.round_resets.blind_tags then
+            G.GAME.round_resets.blind_tags[blind_choice] = state.keys[state.selected[1]]
+        end
+        local selected_keys = {}
+        for _, idx in ipairs(state.selected) do
+            selected_keys[#selected_keys + 1] = state.keys[idx]
+        end
+        return selected_keys, state
+    end
+
+    local function reb4l_set_selected_tag(blind_choice, index, pick_count)
+        local state = reb4l_get_blind_tag_choice_state(blind_choice)
+        if not (state and state.keys[index]) then return end
+        reb4l_normalize_tag_selection(state, pick_count)
+
+        if pick_count == 1 then
+            if state.selected[1] == index then
+                state.selected = {}
+                if G.GAME then G.GAME.reb4l_fork_selected_index = nil end
+            else
+                state.selected = { index }
+                if G.GAME then G.GAME.reb4l_fork_selected_index = index end
+            end
+        else
+            local already_selected = false
+            for _, idx in ipairs(state.selected) do
+                if idx == index then
+                    already_selected = true
+                    break
+                end
+            end
+            if not already_selected then
+                state.selected[#state.selected + 1] = index
+                while #state.selected > pick_count do
+                    table.remove(state.selected, 1)
+                end
+                table.sort(state.selected)
+            end
+        end
+        reb4l_sync_primary_blind_tag(blind_choice, pick_count)
+    end
+
+    G.FUNCS.reb4l_hover_fork_tag = function(e)
+        if not e or not e.parent or not e.parent.states then return end
+        if e.states.hover.is and (e.created_on_pause == G.SETTINGS.paused) and not e.alert then
+            local tag = e.config.ref_table[2]
+            local sprite = tag:get_uibox_table()
+            e.alert = UIBox{
+                definition = G.UIDEF.card_h_popup(sprite),
+                config = {
+                    align = "tm",
+                    offset = { x = 0, y = -0.1 },
+                    major = e,
+                    instance_type = 'POPUP',
+                },
+            }
+            sprite:juice_up(0.05, 0.02)
+            play_sound('paper1', math.random()*0.1 + 0.55, 0.42)
+            play_sound('tarot2', math.random()*0.1 + 0.55, 0.09)
+            e.alert.states.collide.can = false
+        elseif e.alert and (not e.states.hover.is or e.created_on_pause ~= G.SETTINGS.paused) then
+            e.alert:remove()
+            e.alert = nil
+        end
+    end
+
+    G.FUNCS.reb4l_select_fork_tag = function(e)
+        if not (e and e.config and e.config.ref_table) then return end
+        local index = e.config.ref_table[1]
+        local tag = e.config.ref_table[2]
+        local blind_choice = e.config.ref_table[3]
+        local pick_count = e.config.ref_table[4] or 1
+        local other_tags = e.parent and e.parent.parent and e.parent.parent.config and e.parent.parent.config.ref_table
+        reb4l_set_selected_tag(blind_choice, index, pick_count)
+        local _, state = reb4l_sync_primary_blind_tag(blind_choice, pick_count)
+
+        if other_tags then
+            local has_selection = state and state.selected and state.selected[1]
+            for i = 1, #other_tags do
+                if other_tags[i] and other_tags[i].T then
+                    other_tags[i].T.scale = (not has_selection or i == state.selected[1]) and 1 or 0.7
+                end
+            end
+        end
+        if tag then
+            tag:juice_up()
+        end
+    end
+
+    local function reb4l_make_branching_tag_ui(blind_choice, pick_count)
+        local state = reb4l_get_blind_tag_choice_state(blind_choice)
+        if not state then return nil end
+        reb4l_normalize_tag_selection(state, pick_count)
+        reb4l_sync_primary_blind_tag(blind_choice, pick_count)
+        local primary_tag = nil
+
+        local tag_nodes = {}
+        local tag_sprites = {}
+        local tag_info = {}
+        for i, tag_key in ipairs(state.keys) do
+            local tag = Tag(tag_key, nil, blind_choice)
+            local tag_ui, tag_sprite = tag:generate_UI()
+            if tag_ui and tag_ui.nodes and tag_ui.nodes[1] and tag_ui.nodes[1].config then
+                if tag_ui.nodes[1].config.w then
+                    tag_ui.nodes[1].config.w = tag_ui.nodes[1].config.w * 1.15
+                end
+                if tag_ui.nodes[1].config.h then
+                    tag_ui.nodes[1].config.h = tag_ui.nodes[1].config.h * 1.15
+                end
+            end
+            tag_sprite.states.collide.can = false
+            tag_ui.T = tag_ui.T or {}
+            tag_info[#tag_info + 1] = tag
+            tag_sprites[#tag_sprites + 1] = tag_sprite
+
+            local selected = false
+            for _, idx in ipairs(state.selected) do
+                if idx == i then
+                    selected = true
+                    break
+                end
+            end
+            if selected and not primary_tag then
+                primary_tag = tag
+            end
+            tag_ui.T.scale = (#state.selected == 0 or selected) and 1 or 0.7
+
+            tag_nodes[#tag_nodes + 1] = {
+                n = G.UIT.C,
+                config = {
+                    align = "cm",
+                    padding = 0.03,
+                    hover = true,
+                    button = 'reb4l_select_fork_tag',
+                    func = 'reb4l_hover_fork_tag',
+                    ref_table = { i, tag, blind_choice, pick_count },
+                },
+                nodes = { tag_ui },
+            }
+        end
+        primary_tag = primary_tag or tag_info[1]
+
+        return {n=G.UIT.R, config={id='tag_container', ref_table=primary_tag, align="cm"}, nodes={
+            {n=G.UIT.R, config={
+                id='tag_'..blind_choice,
                 align="cm",
-                colour=G.C.RED,
-                minh=0.6,
-                minw=2,
-                maxw=2,
-                padding=0.07,
                 r=0.1,
-                shadow=true,
-                hover=true,
-                one_press=true,
-                button='skip_blind_fork',
-                func='hover_tag_proxy',
-                ref_table=tag2,
+                padding=0.1,
+                minw=1,
+                can_collide=true,
+                ref_table=tag_sprites,
             }, nodes={
-                {n=G.UIT.T, config={text=localize('b_skip_blind'), scale=0.4, colour=G.C.UI.TEXT_LIGHT, shadow=true}},
-            }}
-        end
-
-        row_nodes[#row_nodes + 1] = {n=G.UIT.R, config={
-            id='tag_'..blind_choice..'_2',
-            align="cm",
-            r=0.1,
-            padding=0.1,
-            minw=1,
-            can_collide=true,
-            ref_table=tag2_sprite,
-        }, nodes=tag_nodes}
-
-        return {n=G.UIT.R, config={id='tag_container_fork', ref_table=tag2, align="cm"}, nodes=row_nodes}
+                {n=G.UIT.R, config={align="cm", r=0.1, maxw=1}, nodes=tag_nodes},
+                {n=G.UIT.R, config={
+                    align="cm",
+                    colour=G.C.UI.BACKGROUND_INACTIVE,
+                    minh=0.8,
+                    minw=2,
+                    maxw=2,
+                    padding=0.07,
+                    r=0.1,
+                    shadow=true,
+                    hover=true,
+                    one_press=true,
+                    button='skip_blind',
+                    func='hover_tag_proxy',
+                    ref_table=tag_info,
+                }, nodes={
+                    {n=G.UIT.T, config={text=localize('b_skip_blind'), scale=0.4, colour=G.C.UI.TEXT_INACTIVE}},
+                }},
+            }},
+            {n=G.UIT.R, config={align="cm", colour=G.C.BLACK, minh=0.001, minw=0.001}, nodes={
+                {n=G.UIT.B, config={w=0.001, h=0.001}, nodes={}},
+            }},
+        }}
     end
 
-    local function reb4l_refresh_blind_option(blind_choice)
+    function reb4l_refresh_blind_option(blind_choice)
         if not (blind_choice and G.blind_select_opts and G.blind_select_opts[string.lower(blind_choice)]) then
             return
         end
@@ -316,6 +545,10 @@ if REB4LANCED.config.fork_tag_vouchers then
             trigger = 'after',
             blocking = false,
             func = function()
+                reb4l_clear_fork_popups(skipped)
+                if skip_to and skip_to ~= skipped then
+                    reb4l_clear_fork_popups(skip_to)
+                end
                 reb4l_refresh_blind_option(skipped)
                 if skip_to and skip_to ~= skipped then
                     reb4l_refresh_blind_option(skip_to)
@@ -325,7 +558,7 @@ if REB4LANCED.config.fork_tag_vouchers then
         }))
     end
 
-    -- Wrap create_UIBox_blind_tag so the current blind can show the cached second tag.
+    -- Wrap create_UIBox_blind_tag so the current blind uses a Branching-style picker.
     local reb4l_orig_create_blind_tag = create_UIBox_blind_tag
     function create_UIBox_blind_tag(blind_choice, run_info)
         local result = reb4l_orig_create_blind_tag(blind_choice, run_info)
@@ -334,82 +567,362 @@ if REB4LANCED.config.fork_tag_vouchers then
             return result
         end
 
-        local has_t2 = G.GAME.used_vouchers['v_reb4l_fork_tag']
-        local has_t1_only = G.GAME.used_vouchers['v_reb4l_split_tag'] and not has_t2
-        if not (has_t1_only or has_t2) then
+        local pick_count = reb4l_get_fork_pick_count()
+        if pick_count == 0 then
             return result
         end
 
-        local second_row = reb4l_make_tag2_row(blind_choice, has_t1_only)
-
-        return {n=G.UIT.R, config={align="cm"}, nodes={result, second_row}}
+        return reb4l_make_branching_tag_ui(blind_choice, pick_count) or result
     end
 
-    -- skip_blind_fork: mirror of vanilla's skip_blind but consumes tag_container_fork.
-    -- Called when the player clicks the second "Skip" button in the T1 choice UI.
-    G.FUNCS.skip_blind_fork = function(e)
-        if G.CONTROLLER.locks.skip_blind then return end   -- prevent double-fire
-        stop_use()
-        G.CONTROLLER.locks.skip_blind = true
-        G.E_MANAGER:add_event(Event({
-            no_delete  = true,
-            trigger    = 'after',
-            blocking   = false, blockable = false,
-            delay      = 2.5,
-            timer      = 'TOTAL',
-            func = function() G.CONTROLLER.locks.skip_blind = nil; return true end,
-        }))
-        local _tag = e.UIBox:get_UIE_by_ID('tag_container_fork')
-        G.GAME.skips = (G.GAME.skips or 0) + 1
-        if _tag then
-            -- Honour Chicot echo-tag tracking (active only when chicot_mode == 3).
-            if G.GAME then G.GAME.reb4l_tracking_skip = true end
-            add_tag(_tag.config.ref_table)
-            if G.GAME then G.GAME.reb4l_tracking_skip = false end
+    local reb4l_orig_hover_tag_proxy = G.FUNCS.hover_tag_proxy
+    G.FUNCS.hover_tag_proxy = function(e)
+        local pick_count = reb4l_get_fork_pick_count()
+        local current_blind = G.GAME and G.GAME.blind_on_deck
+        local parent_id = e and e.parent and e.parent.config and e.parent.config.id
+        local parent_blind = type(parent_id) == 'string' and string.match(parent_id, '^tag_(.+)$')
+        local is_fork_skip_hover = pick_count > 0
+            and e and e.config
+            and reb4l_is_fork_tag_list(e.config.ref_table)
+            and parent_blind
 
-            local skipped = G.GAME.blind_on_deck or 'Small'
-            local skip_to = skipped == 'Small' and 'Big'
-                         or skipped == 'Big'   and 'Boss'
-                         or 'Boss'
-            G.GAME.round_resets.blind_states[skipped] = 'Skipped'
-            G.GAME.round_resets.blind_states[skip_to] = 'Select'
-            G.GAME.blind_on_deck = skip_to
-            reb4l_refresh_skip_ui(skipped, skip_to)
-            play_sound('generic1')
-            G.E_MANAGER:add_event(Event({
-                trigger = 'immediate',
-                func = function()
-                    delay(0.3)
-                    SMODS.calculate_context({skip_blind = true})
-                    save_run()
-                    for i = 1, #G.GAME.tags do
-                        G.GAME.tags[i]:apply_to_run({type = 'immediate'})
-                    end
-                    for i = 1, #G.GAME.tags do
-                        if G.GAME.tags[i]:apply_to_run({type = 'new_blind_choice'}) then break end
-                    end
-                    return true
-                end,
-            }))
+        if not is_fork_skip_hover then
+            return reb4l_orig_hover_tag_proxy(e)
+        end
+
+        local selected_index = G.GAME and G.GAME.reb4l_fork_selected_index
+        local selected_tag = selected_index and e.config.ref_table[selected_index]
+        if selected_tag and not selected_tag.get_uibox_table then
+            selected_tag = nil
+        end
+
+        if e.states and e.states.hover and e.states.hover.is
+            and (e.created_on_pause == G.SETTINGS.paused)
+            and not e.alert and selected_tag then
+            local sprite = selected_tag:get_uibox_table()
+            e.alert = UIBox{
+                definition = G.UIDEF.card_h_popup(sprite),
+                config = {
+                    align = "tm",
+                    offset = { x = 0, y = -0.1 },
+                    major = e.parent,
+                    instance_type = 'POPUP',
+                },
+            }
+            sprite:juice_up(0.05, 0.02)
+            play_sound('paper1', math.random()*0.1 + 0.55, 0.42)
+            play_sound('tarot2', math.random()*0.1 + 0.55, 0.09)
+            e.alert.states.collide.can = false
+        elseif e.alert and ((not e.states or not e.states.collide or not e.states.collide.is)
+            or e.created_on_pause ~= G.SETTINGS.paused) then
+            e.alert:remove()
+            e.alert = nil
+        end
+
+        if selected_tag and parent_blind == current_blind then
+            e.config.button = 'skip_blind'
+            e.config.hover = true
+            e.config.colour = G.C.RED
+            if e.children and e.children[1] and e.children[1].config then
+                e.children[1].config.colour = G.C.UI.TEXT_LIGHT
+            end
+        else
+            e.config.button = nil
+            e.config.hover = false
+            e.config.colour = G.C.UI.BACKGROUND_INACTIVE
+            if e.children and e.children[1] and e.children[1].config then
+                e.children[1].config.colour = G.C.UI.TEXT_INACTIVE
+            end
         end
     end
 
-    -- ── T2: add a second tag after every vanilla skip ─────────────────────────
+    local reb4l_orig_toggle_shop = G.FUNCS.toggle_shop
+    G.FUNCS.toggle_shop = function(e)
+        local result = reb4l_orig_toggle_shop(e)
+        reb4l_clear_fork_selection()
+        return result
+    end
+
+    local reb4l_orig_cash_out_fork = G.FUNCS.cash_out
+    G.FUNCS.cash_out = function(e)
+        local result = reb4l_orig_cash_out_fork(e)
+        reb4l_clear_fork_selection()
+        return result
+    end
+
+    local reb4l_orig_blind_choice_handler = G.FUNCS.blind_choice_handler
+    G.FUNCS.blind_choice_handler = function(e)
+        local pick_count = reb4l_get_fork_pick_count()
+        if pick_count == 0 or not (e and e.config and e.config.id and G.GAME and G.blind_select_opts) then
+            return reb4l_orig_blind_choice_handler(e)
+        end
+
+        if not (e.config.id == 'Small' or e.config.id == 'Big') then
+            return reb4l_orig_blind_choice_handler(e)
+        end
+
+        if not e.config.ref_table.run_info and G.blind_select and G.blind_select.VT.y < 10
+            and G.blind_select_opts[string.lower(e.config.id)] then
+            if e.UIBox.role.xy_bond ~= 'Weak' then
+                e.UIBox:set_role({ xy_bond = 'Weak' })
+            end
+
+            if (e.config.ref_table.deck ~= 'on' and e.config.id == G.GAME.blind_on_deck)
+                or (e.config.ref_table.deck ~= 'off' and e.config.id ~= G.GAME.blind_on_deck) then
+                local blind_choice = G.blind_select_opts[string.lower(e.config.id)]
+                local top_button = e.UIBox:get_UIE_by_ID('select_blind_button')
+                local border = e.UIBox.UIRoot and e.UIBox.UIRoot.children
+                    and e.UIBox.UIRoot.children[1] and e.UIBox.UIRoot.children[1].children
+                    and e.UIBox.UIRoot.children[1].children[1]
+                local tag_row = e.UIBox:get_UIE_by_ID('tag_' .. e.config.id)
+                local tag_container = e.UIBox:get_UIE_by_ID('tag_container')
+
+                if tag_container and not G.SETTINGS.tutorial_complete
+                    and not G.SETTINGS.tutorial_progress.completed_parts['shop_1'] then
+                    tag_container.states.visible = false
+                elseif tag_container then
+                    tag_container.states.visible = true
+                end
+
+                if e.config.id == G.GAME.blind_on_deck then
+                    e.config.ref_table.deck = 'on'
+                    e.config.draw_after = false
+                    e.config.colour = G.C.CLEAR
+                    if border and border.parent and border.parent.config then
+                        border.parent.config.outline = 2
+                        border.parent.config.outline_colour = G.C.UI.TRANSPARENT_DARK
+                    end
+                    if border and border.config then
+                        border.config.outline_colour = border.config.outline and border.config.outline_colour
+                            or get_blind_main_colour(e.config.id)
+                        border.config.outline = 1.5
+                    end
+                    if blind_choice and blind_choice.alignment and blind_choice.alignment.offset then
+                        blind_choice.alignment.offset.y = -0.9
+                    end
+                    if tag_row and tag_container then
+                        if tag_container.children and tag_container.children[2] and tag_container.children[2].config then
+                            tag_container.children[2].config.draw_after = false
+                            tag_container.children[2].config.colour = G.C.BLACK
+                        end
+                        tag_row.config.outline_colour = adjust_alpha(G.C.BLUE, 0.5)
+                        if tag_row.children and tag_row.children[2] and tag_row.children[2].config then
+                            tag_row.children[2].config.button = nil
+                            tag_row.children[2].config.hover = false
+                            tag_row.children[2].config.colour = G.C.UI.BACKGROUND_INACTIVE
+                            if tag_row.children[2].children and tag_row.children[2].children[1]
+                                and tag_row.children[2].children[1].config then
+                                tag_row.children[2].children[1].config.colour = G.C.UI.TEXT_INACTIVE
+                            end
+                        end
+                        if tag_row.children and tag_row.children[1] and tag_row.children[1].children then
+                            for i = 1, #tag_row.children[1].children do
+                                local node = tag_row.children[1].children[i]
+                                local sprite = tag_row.config.ref_table and tag_row.config.ref_table[i]
+                                if sprite and sprite.config then
+                                    sprite.config.force_focus = nil
+                                end
+                                if node and node.config then
+                                    node.config.button = 'reb4l_select_fork_tag'
+                                end
+                            end
+                        end
+                    end
+                    if top_button then
+                        G.E_MANAGER:add_event(Event({
+                            func = function()
+                                G.CONTROLLER:snap_to({ node = top_button })
+                                return true
+                            end,
+                        }))
+                        if top_button.config.button ~= "mp_toggle_ready" then
+                            top_button.config.button = "select_blind"
+                        end
+                        top_button.config.colour = G.C.FILTER
+                        top_button.config.hover = true
+                        if top_button.children and top_button.children[1] and top_button.children[1].config then
+                            top_button.children[1].config.colour = G.C.WHITE
+                        end
+                    end
+                else
+                    e.config.ref_table.deck = 'off'
+                    e.config.draw_after = true
+                    e.config.colour = adjust_alpha(
+                        G.GAME.round_resets.blind_states[e.config.id] == 'Skipped'
+                            and mix_colours(G.C.BLUE, G.C.L_BLACK, 0.1) or G.C.L_BLACK,
+                        0.5
+                    )
+                    if border and border.parent and border.parent.config then
+                        border.parent.config.outline = nil
+                        border.parent.config.outline_colour = nil
+                    end
+                    if border and border.config then
+                        border.config.outline_colour = nil
+                        border.config.outline = nil
+                    end
+                    if blind_choice and blind_choice.alignment and blind_choice.alignment.offset then
+                        blind_choice.alignment.offset.y = -0.2
+                    end
+                    if tag_row and tag_container then
+                        if G.GAME.round_resets.blind_states[e.config.id] == 'Skipped'
+                            or G.GAME.round_resets.blind_states[e.config.id] == 'Defeated' then
+                            if tag_container.children and tag_container.children[2] then
+                                tag_container.children[2]:set_role({ xy_bond = 'Weak' })
+                                tag_container.children[2]:align(0, 10)
+                            end
+                            if tag_container.children and tag_container.children[1] then
+                                tag_container.children[1]:set_role({ xy_bond = 'Weak' })
+                                tag_container.children[1]:align(0, 10)
+                            end
+                        end
+                        if G.GAME.round_resets.blind_states[e.config.id] == 'Skipped' then
+                            blind_choice.children.alert = UIBox{
+                                definition = create_UIBox_card_alert({
+                                    text_rot = -0.35, no_bg = true, text = localize('k_skipped_cap'),
+                                    bump_amount = 1, scale = 0.9, maxw = 3.4
+                                }),
+                                config = {
+                                    align = "tmi",
+                                    offset = { x = 0, y = 2.2 },
+                                    major = blind_choice,
+                                    parent = blind_choice
+                                }
+                            }
+                        end
+                        if tag_row.children and tag_row.children[2] and tag_row.children[2].config then
+                            tag_row.children[2].config.button = nil
+                            tag_row.children[2].config.hover = false
+                            tag_row.children[2].config.colour = G.C.UI.BACKGROUND_INACTIVE
+                            if tag_row.children[2].children and tag_row.children[2].children[1]
+                                and tag_row.children[2].children[1].config then
+                                tag_row.children[2].children[1].config.colour = G.C.UI.TEXT_INACTIVE
+                            end
+                        end
+                        tag_row.config.outline_colour = G.C.UI.BACKGROUND_INACTIVE
+                        if tag_row.children and tag_row.children[1] and tag_row.children[1].children then
+                            for i = 1, #tag_row.children[1].children do
+                                local node = tag_row.children[1].children[i]
+                                local sprite = tag_row.config.ref_table and tag_row.config.ref_table[i]
+                                if node and node.config then
+                                    node.config.button = nil
+                                end
+                                if sprite and sprite.config then
+                                    sprite.config.force_focus = true
+                                end
+                            end
+                        end
+                    end
+                    if top_button then
+                        top_button.config.colour = G.C.UI.BACKGROUND_INACTIVE
+                        top_button.config.button = nil
+                        top_button.config.hover = false
+                        if top_button.children and top_button.children[1] and top_button.children[1].config then
+                            top_button.children[1].config.colour = G.C.UI.TEXT_INACTIVE
+                        end
+                    end
+                end
+            end
+            return
+        end
+
+        return reb4l_orig_blind_choice_handler(e)
+    end
+
+    -- Wrap vanilla skip_blind so T1/T2 use the selected Branching-style tags.
     local reb4l_orig_skip_t2 = G.FUNCS.skip_blind
     G.FUNCS.skip_blind = function(e)
         local skipped = G.GAME and G.GAME.blind_on_deck
+        local pick_count = reb4l_get_fork_pick_count()
+        local selected_keys = nil
+        local first_tag_key = G.GAME and G.GAME.round_resets and G.GAME.round_resets.blind_tags
+            and skipped and G.GAME.round_resets.blind_tags[skipped]
+        local selected_index = G.GAME and G.GAME.reb4l_fork_selected_index
+
+        if skipped and reb4l_t1_active() and selected_index and e and e.UIBox then
+            local tag_row = e.UIBox:get_UIE_by_ID('tag_' .. skipped)
+            local tag_list = tag_row and tag_row.children and tag_row.children[2]
+                and tag_row.children[2].config and tag_row.children[2].config.ref_table
+            local selected_tag = tag_list and tag_list[selected_index]
+            if selected_tag then
+                reb4l_clear_fork_popups(skipped)
+                if e.alert then
+                    e.alert:remove()
+                    e.alert = nil
+                end
+                if G.CONTROLLER.locks.skip_blind then return end
+                stop_use()
+                G.CONTROLLER.locks.skip_blind = true
+                G.E_MANAGER:add_event(Event({
+                    no_delete = true,
+                    trigger = 'after',
+                    blocking = false,
+                    blockable = false,
+                    delay = 2.5,
+                    timer = 'TOTAL',
+                    func = function()
+                        G.CONTROLLER.locks.skip_blind = nil
+                        return true
+                    end,
+                }))
+
+                G.GAME.skips = (G.GAME.skips or 0) + 1
+                if check_for_unlock then
+                    check_for_unlock({ type = 'skip_count' })
+                end
+                if G.GAME then G.GAME.reb4l_tracking_skip = true end
+                add_tag(selected_tag)
+                if G.GAME then G.GAME.reb4l_tracking_skip = false end
+                reb4l_clear_fork_selection(skipped)
+
+                local skip_to = skipped == 'Small' and 'Big'
+                    or skipped == 'Big' and 'Boss'
+                    or 'Boss'
+                G.GAME.round_resets.blind_states[skipped] = 'Skipped'
+                G.GAME.round_resets.blind_states[skip_to] = 'Select'
+                G.GAME.blind_on_deck = skip_to
+                play_sound('generic1')
+                G.E_MANAGER:add_event(Event({
+                    trigger = 'immediate',
+                    func = function()
+                        delay(0.3)
+                        SMODS.calculate_context({ skip_blind = true })
+                        save_run()
+                        for i = 1, #G.GAME.tags do
+                            G.GAME.tags[i]:apply_to_run({ type = 'immediate' })
+                        end
+                        for i = 1, #G.GAME.tags do
+                            if G.GAME.tags[i]:apply_to_run({ type = 'new_blind_choice' }) then
+                                break
+                            end
+                        end
+                        return true
+                    end,
+                }))
+                reb4l_refresh_skip_ui(skipped, skip_to)
+                return
+            end
+        end
+
+        if skipped and pick_count > 0 then
+            selected_keys = reb4l_sync_primary_blind_tag(skipped, pick_count)
+        end
         reb4l_orig_skip_t2(e)
         local skip_to = G.GAME and G.GAME.blind_on_deck
-        if skipped and G.GAME and G.GAME.used_vouchers
-            and (G.GAME.used_vouchers['v_reb4l_split_tag'] or G.GAME.used_vouchers['v_reb4l_fork_tag']) then
+        if skipped and pick_count > 0 then
             reb4l_refresh_skip_ui(skipped, skip_to)
         end
-        if skipped and G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_reb4l_fork_tag'] then
+        if skipped and reb4l_t2_active() then
             G.E_MANAGER:add_event(Event({
                 trigger = 'after',
                 func = function()
+                    local tag_key = get_next_tag_key()
+                    local guard = 0
+                    while tag_key == first_tag_key and guard < 20 do
+                        guard = guard + 1
+                        tag_key = get_next_tag_key('_reb4l_fork_' .. guard)
+                    end
                     if G.GAME then G.GAME.reb4l_tracking_skip = true end
-                    add_tag(Tag(reb4l_get_tag2_key(skipped), nil, skipped))
+                    add_tag(Tag(tag_key, nil, skipped))
                     if G.GAME then G.GAME.reb4l_tracking_skip = false end
                     return true
                 end,

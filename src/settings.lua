@@ -592,7 +592,7 @@ local function get_category_options(key)
         return {
             make_option_box('Stake Changes', 'All stake reworks (modifiers, reroll/interest/showdown changes)',
                 'stakes_enhanced'),
-            make_cycle_box('Blue Stake', 'blue_stake_mode', { 'Current', '+$2 Base Reroll' }, 8.5),
+            make_cycle_box('Blue Stake', 'blue_stake_mode', { 'Compounding', '+$2 Base' }, 8.5),
             make_option_box('Stake Scaling', 'Per-stake blind chip scaling; vanilla jumps at Green and Purple if off',
                 'stake_scaling_enhanced'),
             make_option_box('Perishable Rework', 'Debuffs after 6 rounds instead of 5', 'perishable_enhanced'),
