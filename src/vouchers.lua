@@ -127,32 +127,32 @@ SMODS.Voucher:take_ownership('planet_tycoon', {
 }, false)
 end -- REB4LANCED.config.planet_tycoon_enhanced
 
--- Magic Trick: playing cards in shop may appear with enhancements, editions, or seals
--- (behavior in overrides.lua create_card_for_shop)
+-- Magic Trick: playing cards in shop may appear with enhancements, editions, seals,
+-- or paper clips when Paperback is present (behavior in overrides.lua create_card_for_shop)
 if REB4LANCED.config.magic_trick_enhanced then
 SMODS.Voucher:take_ownership('magic_trick', {
     loc_txt = {
         name = 'Magic Trick',
         text = {
-            '{C:attention}Playing cards{} can',
-            'be purchased from the {C:attention}shop{}',
-            'and may have {C:attention}enhancements{},',
-            '{C:dark_edition}editions{}, or {C:attention}seals',
+            '{C:attention}Playing cards{} in shop',
+            'may appear with {C:attention}enhancements{},',
+            '{C:dark_edition}editions{}, {C:attention}seals{}, or',
+            '{C:attention}paper clips{} {C:inactive}(Paperback)',
         },
     },
 }, false)
 end -- REB4LANCED.config.magic_trick_enhanced
 
--- Illusion: playing cards in shop are clones of cards in your deck
--- (behavior in overrides.lua create_card_for_shop; no upgrade rerolls)
+-- Illusion: playing cards in shop are clones of cards in your deck, and their
+-- upgrades are rerolled while preserving copied ones if no new roll lands.
 if REB4LANCED.config.illusion_enhanced then
 SMODS.Voucher:take_ownership('illusion', {
     loc_txt = {
         name = 'Illusion',
         text = {
-            '{C:attention}Playing cards{} in shop',
-            'are {C:attention}clones{} of cards',
-            'in your {C:attention}deck',
+            '{C:attention}Playing cards{} in shop are',
+            '{C:attention}clones{} of cards in your {C:attention}deck{},',
+            'and their upgrades can be {C:attention}rerolled{}',
         },
     },
 }, false)

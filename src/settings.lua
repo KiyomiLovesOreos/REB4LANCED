@@ -77,10 +77,11 @@ local defaults = {
     workshop_deck = false,
     magician_deck = false,
     burnt_mode = 1,
-    anchor_deck = false,
+    anchor_deck = 1,
     -- Stake changes
     stakes_enhanced = false,
     stake_scaling_enhanced = false,
+    blue_stake_mode = 1,
     perishable_enhanced = false,
     -- Boss blind changes
     wall_enhanced = false,
@@ -112,6 +113,11 @@ for k, v in pairs(defaults) do
         REB4LANCED.config[k] = v
     end
 end
+if type(REB4LANCED.config.anchor_deck) == 'boolean' then
+    REB4LANCED.config.anchor_deck = REB4LANCED.config.anchor_deck and 2 or 1
+end
+REB4LANCED.config.anchor_deck = math.max(1, math.min(3, tonumber(REB4LANCED.config.anchor_deck) or 1))
+REB4LANCED.config.blue_stake_mode = math.max(1, math.min(2, tonumber(REB4LANCED.config.blue_stake_mode) or 1))
 
 REB4LANCED.UI.options_per_page = 4
 REB4LANCED.UI.current_page     = 1
@@ -198,7 +204,7 @@ local PRESET_KEYS              = {
     { 'workshop_deck',             'bool' },
     { 'magician_deck',             'bool' },
     { 'burnt_mode',                'cycle', 3 },
-    { 'anchor_deck',               'bool' },
+    { 'anchor_deck',               'cycle', 3 },
     -- Enhancements
     { 'mult_card_enhanced',        'bool' },
     { 'stone_card_enhanced',       'bool' },
@@ -224,6 +230,7 @@ local PRESET_KEYS              = {
     { 'interest_on_skip',          'bool' },
     { 'standard_packs_enhanced',   'bool' },
     { 'fork_tag_vouchers',         'bool' },
+    { 'blue_stake_mode',           'cycle', 2 },
 }
 
 -- ─── SUGGESTED PRESET ─────────────────────────────────────────────────────────
@@ -305,7 +312,7 @@ local SUGGESTED                = {
     workshop_deck             = true,
     magician_deck             = true,
     burnt_mode                = 3,
-    anchor_deck               = true,
+    anchor_deck               = 2, -- 1=Off  2=Hand Locked  3=Fixed Rerolls
     -- Enhancements
     mult_card_enhanced        = true,
     stone_card_enhanced       = true,
@@ -327,6 +334,7 @@ local SUGGESTED                = {
     -- Misc
     stakes_enhanced           = true,
     stake_scaling_enhanced    = true,
+    blue_stake_mode           = 1, -- 1=Current  2=+$2 Base Reroll
     perishable_enhanced       = true,
     interest_on_skip          = true,
     standard_packs_enhanced   = true,
@@ -560,9 +568,10 @@ local function get_category_options(key)
                 'hieroglyph_rework'),
             make_option_box('Tarot Tycoon', 'Every shop has a free Mega Arcana Pack', 'tarot_tycoon_enhanced'),
             make_option_box('Planet Tycoon', '1/2 Planet cards in shop are Negative', 'planet_tycoon_enhanced'),
-            make_option_box('Magic Trick', 'Shop playing cards may have enhancements, editions, seals',
+            make_option_box('Magic Trick', 'Shop playing cards may have enhancements, editions, seals, and clips',
                 'magic_trick_enhanced'),
-            make_option_box('Illusion', 'Shop playing cards are clones of cards in your deck', 'illusion_enhanced'),
+            make_option_box('Illusion', 'Shop playing cards clone your deck and reroll copied upgrades',
+                'illusion_enhanced'),
             make_option_box('Telescope', '1/2 chance Planet in shop matches most-played hand', 'telescope_enhanced'),
             make_option_box('Observatory', 'X2 Mult per Planet used', 'observatory_enhanced'),
         }
@@ -583,6 +592,7 @@ local function get_category_options(key)
         return {
             make_option_box('Stake Changes', 'All stake reworks (modifiers, reroll/interest/showdown changes)',
                 'stakes_enhanced'),
+            make_cycle_box('Blue Stake', 'blue_stake_mode', { 'Current', '+$2 Base Reroll' }, 8.5),
             make_option_box('Stake Scaling', 'Per-stake blind chip scaling; vanilla jumps at Green and Purple if off',
                 'stake_scaling_enhanced'),
             make_option_box('Perishable Rework', 'Debuffs after 6 rounds instead of 5', 'perishable_enhanced'),
@@ -600,7 +610,8 @@ local function get_category_options(key)
             make_option_box('Workshop Deck', 'Start with Overstock and Clearance Sale; -1 hand', 'workshop_deck'),
             make_option_box('Magician Deck', 'Start with Magic Trick and Illusion vouchers', 'magician_deck'),
             make_cycle_box('Burnt Deck', 'burnt_mode', { 'Off', 'Start', 'Planet Levels' }),
-            make_option_box('Anchor Deck', 'Hand size is locked; cannot be gained or lost', 'anchor_deck'),
+            make_cycle_box('Anchor Deck', 'anchor_deck',
+                { 'Off', 'Hand Locked', 'Fixed Rerolls' }, 8.5),
         }
     elseif key == 'nc_enhancements' then
         return {}

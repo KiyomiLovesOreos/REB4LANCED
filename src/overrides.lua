@@ -200,6 +200,14 @@ end
 --   keep). Works via vanilla skip_blind wrapper; T1's choice UI is hidden.
 if REB4LANCED.config.fork_tag_vouchers then
 
+    local function reb4l_blind_choice_is_current(blind_choice)
+        return G.GAME
+            and G.GAME.blind_on_deck == blind_choice
+            and G.GAME.round_resets
+            and G.GAME.round_resets.blind_states
+            and G.GAME.round_resets.blind_states[blind_choice] == 'Select'
+    end
+
     -- Helper: return (and lazily generate) the second tag key for blind_choice.
     -- Cached in round_resets so it survives save/load; invalidated on ante change.
     local function reb4l_get_tag2_key(blind_choice)
@@ -208,39 +216,131 @@ if REB4LANCED.config.fork_tag_vouchers then
         if r.reb4l_blind_tags2._ante ~= r.ante then
             r.reb4l_blind_tags2 = { _ante = r.ante }
         end
-        if not r.reb4l_blind_tags2[blind_choice] then
-            r.reb4l_blind_tags2[blind_choice] = get_next_tag_key()
+        local tag1_key = r.blind_tags and r.blind_tags[blind_choice]
+        if not r.reb4l_blind_tags2[blind_choice] or r.reb4l_blind_tags2[blind_choice] == tag1_key then
+            local tag2_key = get_next_tag_key()
+            local guard = 0
+            while tag1_key and tag2_key == tag1_key and guard < 20 do
+                tag2_key = get_next_tag_key()
+                guard = guard + 1
+            end
+            r.reb4l_blind_tags2[blind_choice] = tag2_key
         end
         return r.reb4l_blind_tags2[blind_choice]
     end
 
-    -- ── T1 UI: wrap create_UIBox_blind_tag to show a second skip option ──────
+    local function reb4l_make_tag2_row(blind_choice, show_choice_ui)
+        local tag2 = Tag(reb4l_get_tag2_key(blind_choice), nil, blind_choice)
+        local tag2_ui, tag2_sprite = tag2:generate_UI()
+        tag2_sprite.states.collide.can = false
+
+        local row_nodes = {}
+        if show_choice_ui then
+            row_nodes[#row_nodes + 1] = {n=G.UIT.R, config={align='tm', minh=0.65}, nodes={
+                {n=G.UIT.T, config={text=localize('k_or'), scale=0.55, colour=G.C.WHITE, shadow=true}},
+            }}
+        end
+
+        local tag_nodes = {
+            {n=G.UIT.C, config={id='tag_desc_2', align="cm", minh=1}, nodes={tag2_ui}},
+        }
+        if show_choice_ui then
+            tag_nodes[#tag_nodes + 1] = {n=G.UIT.C, config={
+                align="cm",
+                colour=G.C.RED,
+                minh=0.6,
+                minw=2,
+                maxw=2,
+                padding=0.07,
+                r=0.1,
+                shadow=true,
+                hover=true,
+                one_press=true,
+                button='skip_blind_fork',
+                func='hover_tag_proxy',
+                ref_table=tag2,
+            }, nodes={
+                {n=G.UIT.T, config={text=localize('b_skip_blind'), scale=0.4, colour=G.C.UI.TEXT_LIGHT, shadow=true}},
+            }}
+        end
+
+        row_nodes[#row_nodes + 1] = {n=G.UIT.R, config={
+            id='tag_'..blind_choice..'_2',
+            align="cm",
+            r=0.1,
+            padding=0.1,
+            minw=1,
+            can_collide=true,
+            ref_table=tag2_sprite,
+        }, nodes=tag_nodes}
+
+        return {n=G.UIT.R, config={id='tag_container_fork', ref_table=tag2, align="cm"}, nodes=row_nodes}
+    end
+
+    local function reb4l_refresh_blind_option(blind_choice)
+        if not (blind_choice and G.blind_select_opts and G.blind_select_opts[string.lower(blind_choice)]) then
+            return
+        end
+        local key = string.lower(blind_choice)
+        local current_box = G.blind_select_opts[key]
+        local parent = current_box and current_box.parent
+        if not parent then return end
+
+        current_box:remove()
+        G.blind_select_opts[key] = UIBox{
+            T = {parent.T.x, 0, 0, 0},
+            definition = {n=G.UIT.ROOT, config={align = "cm", colour = G.C.CLEAR}, nodes={
+                UIBox_dyn_container(
+                    {create_UIBox_blind_choice(blind_choice, G.SETTINGS.paused)},
+                    false,
+                    get_blind_main_colour(blind_choice),
+                    mix_colours(G.C.BLACK, get_blind_main_colour(blind_choice), 0.8)
+                )
+            }},
+            config = {
+                align = "bmi",
+                offset = {x = 0, y = G.ROOM.T.y + 9},
+                major = parent,
+                xy_bond = 'Weak',
+            }
+        }
+        parent.config.object = G.blind_select_opts[key]
+        parent.config.object:recalculate()
+        G.blind_select_opts[key].parent = parent
+        G.blind_select_opts[key].alignment.offset.y = 0
+    end
+
+    local function reb4l_refresh_skip_ui(skipped, skip_to)
+        if not G.E_MANAGER then return end
+        G.E_MANAGER:add_event(Event({
+            trigger = 'after',
+            blocking = false,
+            func = function()
+                reb4l_refresh_blind_option(skipped)
+                if skip_to and skip_to ~= skipped then
+                    reb4l_refresh_blind_option(skip_to)
+                end
+                return true
+            end,
+        }))
+    end
+
+    -- Wrap create_UIBox_blind_tag so the current blind can show the cached second tag.
     local reb4l_orig_create_blind_tag = create_UIBox_blind_tag
     function create_UIBox_blind_tag(blind_choice, run_info)
         local result = reb4l_orig_create_blind_tag(blind_choice, run_info)
-        -- Only inject second option when T1 active, T2 NOT active, not run-info mode.
         if not result or run_info then return result end
-        if not (G.GAME and G.GAME.used_vouchers
-                and G.GAME.used_vouchers['v_reb4l_split_tag']
-                and not G.GAME.used_vouchers['v_reb4l_fork_tag']) then
+        if not (G.GAME and G.GAME.used_vouchers and reb4l_blind_choice_is_current(blind_choice)) then
             return result
         end
 
-        local _tag2 = Tag(reb4l_get_tag2_key(blind_choice), nil, blind_choice)
-        local _tag2_ui, _tag2_sprite = _tag2:generate_UI()
-        _tag2_sprite.states.collide.can = false   -- matches vanilla's skip-UI behaviour
+        local has_t2 = G.GAME.used_vouchers['v_reb4l_fork_tag']
+        local has_t1_only = G.GAME.used_vouchers['v_reb4l_split_tag'] and not has_t2
+        if not (has_t1_only or has_t2) then
+            return result
+        end
 
-        local second_row = {n=G.UIT.R, config={id='tag_container_fork', ref_table=_tag2, align="cm"}, nodes={
-            {n=G.UIT.R, config={align='tm', minh=0.65}, nodes={
-                {n=G.UIT.T, config={text=localize('k_or'), scale=0.55, colour=G.C.WHITE, shadow=true}},
-            }},
-            {n=G.UIT.R, config={id='tag_'..blind_choice..'_2', align="cm", r=0.1, padding=0.1, minw=1, can_collide=true, ref_table=_tag2_sprite}, nodes={
-                {n=G.UIT.C, config={id='tag_desc_2', align="cm", minh=1}, nodes={_tag2_ui}},
-                {n=G.UIT.C, config={align="cm", colour=G.C.UI.BACKGROUND_INACTIVE, minh=0.6, minw=2, maxw=2, padding=0.07, r=0.1, shadow=true, hover=true, one_press=true, button='skip_blind_fork', func='hover_tag_proxy', ref_table=_tag2}, nodes={
-                    {n=G.UIT.T, config={text=localize('b_skip_blind'), scale=0.4, colour=G.C.UI.TEXT_INACTIVE}},
-                }},
-            }},
-        }}
+        local second_row = reb4l_make_tag2_row(blind_choice, has_t1_only)
 
         return {n=G.UIT.R, config={align="cm"}, nodes={result, second_row}}
     end
@@ -274,6 +374,7 @@ if REB4LANCED.config.fork_tag_vouchers then
             G.GAME.round_resets.blind_states[skipped] = 'Skipped'
             G.GAME.round_resets.blind_states[skip_to] = 'Select'
             G.GAME.blind_on_deck = skip_to
+            reb4l_refresh_skip_ui(skipped, skip_to)
             play_sound('generic1')
             G.E_MANAGER:add_event(Event({
                 trigger = 'immediate',
@@ -296,12 +397,20 @@ if REB4LANCED.config.fork_tag_vouchers then
     -- ── T2: add a second tag after every vanilla skip ─────────────────────────
     local reb4l_orig_skip_t2 = G.FUNCS.skip_blind
     G.FUNCS.skip_blind = function(e)
+        local skipped = G.GAME and G.GAME.blind_on_deck
         reb4l_orig_skip_t2(e)
-        if G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_reb4l_fork_tag'] then
+        local skip_to = G.GAME and G.GAME.blind_on_deck
+        if skipped and G.GAME and G.GAME.used_vouchers
+            and (G.GAME.used_vouchers['v_reb4l_split_tag'] or G.GAME.used_vouchers['v_reb4l_fork_tag']) then
+            reb4l_refresh_skip_ui(skipped, skip_to)
+        end
+        if skipped and G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_reb4l_fork_tag'] then
             G.E_MANAGER:add_event(Event({
                 trigger = 'after',
                 func = function()
-                    add_tag(Tag(get_next_tag_key()))
+                    if G.GAME then G.GAME.reb4l_tracking_skip = true end
+                    add_tag(Tag(reb4l_get_tag2_key(skipped), nil, skipped))
+                    if G.GAME then G.GAME.reb4l_tracking_skip = false end
                     return true
                 end,
             }))
@@ -437,21 +546,39 @@ end
 -- ── Magic Trick / Illusion helpers (modelled after QoL Bundle) ───────────────
 
 local function reb4l_try_apply_enhancement(card, seed_key)
-    local enh = SMODS.poll_enhancement({ key = seed_key, mod = 2.5 })
+    if not card then return end
+    local enh = SMODS.poll_enhancement({ key = seed_key, mod = 2.5, guaranteed = nil })
     if enh then card:set_ability(G.P_CENTERS[enh]) end
 end
 
 local function reb4l_try_apply_edition(card, seed_key)
+    if not card then return end
     local ed = poll_edition(seed_key, 1, false, false)
     if ed then card:set_edition(ed) end
 end
 
 local function reb4l_try_apply_seal(card, seed_key)
+    if not card then return end
     local seal = SMODS.poll_seal({ key = seed_key, mod = 10, guaranteed = false })
     if seal then card:set_seal(seal) end
 end
 
+local function reb4l_try_apply_clip(card, seed_key)
+    if not card or not PB_UTIL or not PB_UTIL.poll_paperclip or not PB_UTIL.set_paperclip then
+        return
+    end
+    if pseudorandom(pseudoseed(seed_key)) > 0.8 then
+        local clip_type = PB_UTIL.poll_paperclip(seed_key)
+        if clip_type then
+            PB_UTIL.set_paperclip(card, clip_type)
+        end
+    end
+end
+
 local function reb4l_recalculate_playing_card_cost(card)
+    if not card or not card.ability or (card.ability.set ~= 'Default' and card.ability.set ~= 'Enhanced') then
+        return
+    end
     local extra = 0
     if card.edition then extra = extra + (card.edition.polychrome and 3 or 2) end
     if card.seal    then extra = extra + 1 end
@@ -463,10 +590,52 @@ local function reb4l_recalculate_playing_card_cost(card)
     card.sell_cost_label = card.sell_cost
 end
 
+local function reb4l_apply_enhanced_magic_trick_upgrades(card)
+    if not card then return end
+    reb4l_try_apply_enhancement(card, 'magic_trick_enh')
+    reb4l_try_apply_edition(card, 'magic_trick_shop')
+    reb4l_try_apply_seal(card, 'magic_trick_seal')
+    reb4l_try_apply_clip(card, 'magic_trick_clip')
+end
+
+local function reb4l_apply_new_illusion_logic(card)
+    if not card then return nil end
+    if not G.playing_cards or #G.playing_cards == 0 then
+        reb4l_apply_enhanced_magic_trick_upgrades(card)
+        return card
+    end
+
+    local deck_card = pseudorandom_element(
+        G.playing_cards,
+        pseudoseed('illusion_deck' .. (G.GAME and G.GAME.round_resets and G.GAME.round_resets.ante or 1))
+    )
+    if not deck_card then
+        reb4l_apply_enhanced_magic_trick_upgrades(card)
+        return card
+    end
+
+    card:set_base(G.P_CARDS[deck_card.config.card_key])
+    if deck_card.edition then
+        card:set_edition(deck_card.edition)
+    end
+    if deck_card.seal then
+        card:set_seal(deck_card.seal)
+    end
+    if deck_card.config and deck_card.config.center and deck_card.config.center.set == 'Enhanced' then
+        card:set_ability(deck_card.config.center)
+    end
+
+    reb4l_try_apply_enhancement(card, 'illusion_enh_improve')
+    reb4l_try_apply_edition(card, 'illusion_ed_improve')
+    reb4l_try_apply_seal(card, 'illusion_seal_improve')
+    reb4l_try_apply_clip(card, 'illusion_clip_improve')
+    return card
+end
+
 -- create_card_for_shop override for Magic Trick / Illusion voucher reworks
--- Magic Trick: playing cards may spawn with random enhancement, edition, or seal
--- Illusion: playing cards are clones of a random card from the player's deck
---   (no double set_base after set_ability — mirrors QoL Bundle's fix)
+-- Magic Trick: upgrades shop playing cards with QoL-style rolls.
+-- Illusion: copies a random deck card, then rerolls upgrades while preserving
+-- copied ones whenever the reroll for that slot misses.
 local reb4l_orig_create_card_for_shop = create_card_for_shop
 function create_card_for_shop(area)
     local card = reb4l_orig_create_card_for_shop(area)
@@ -474,33 +643,11 @@ function create_card_for_shop(area)
         local has_magic    = G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_magic_trick']
         local has_illusion = G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_illusion']
 
-        if has_illusion and G.playing_cards and #G.playing_cards > 0 then
-            -- Clone a random deck card: copy base, enhancement, edition, seal
-            local deck_card = pseudorandom_element(
-                G.playing_cards,
-                pseudoseed('reb4l_illusion' .. (G.GAME.round_resets and G.GAME.round_resets.ante or 1))
-            )
-            if deck_card then
-                card:set_base(G.P_CARDS[deck_card.config.card_key])
-                if deck_card.edition then card:set_edition(deck_card.edition) end
-                if deck_card.seal    then card:set_seal(deck_card.seal) end
-                if deck_card.config.center.set == 'Enhanced' then
-                    card:set_ability(deck_card.config.center)
-                    -- Do NOT call set_base again — it would reset the enhancement
-                end
-                -- Attempt improvements on top of clone
-                reb4l_try_apply_enhancement(card, 'reb4l_ill_enh')
-                reb4l_try_apply_edition(card, 'reb4l_ill_ed')
-                reb4l_try_apply_seal(card, 'reb4l_ill_seal')
-            end
+        if has_illusion then
+            card = reb4l_apply_new_illusion_logic(card) or card
             reb4l_recalculate_playing_card_cost(card)
-
         elseif has_magic then
-            -- Random enhancement (~40% chance), edition, seal
-            reb4l_try_apply_enhancement(card, 'reb4l_magic_enh')
-            -- Do NOT call set_base after set_ability — it would reset the enhancement
-            reb4l_try_apply_edition(card, 'reb4l_magic_ed')
-            reb4l_try_apply_seal(card, 'reb4l_magic_seal')
+            reb4l_apply_enhanced_magic_trick_upgrades(card)
             reb4l_recalculate_playing_card_cost(card)
         end
     end
@@ -701,11 +848,42 @@ G.FUNCS.draw_from_deck_to_hand = function(e)
     return reb4l_orig_draw_from_deck(e)
 end
 
--- Black Stake: reroll cost scales by $2 per reroll instead of $1.
--- We cannot wrap G.FUNCS.reroll_shop because calculate_reroll_cost is called inside
--- an `immediate` event (async), so cost hasn't changed yet when the outer call returns.
--- Instead, wrap calculate_reroll_cost itself: if reroll_cost_increase actually went up
--- (meaning a real paid reroll just happened), add extra increments for Black Stake scale.
+local function reb4l_get_base_reroll_cost()
+    local base = 5
+    if G.GAME and G.GAME.starting_params and type(G.GAME.starting_params.reroll_cost) == 'number' then
+        base = G.GAME.starting_params.reroll_cost
+    end
+    if G.GAME and G.GAME.modifiers and G.GAME.modifiers.reb4l_base_reroll_cost_bonus then
+        base = base + G.GAME.modifiers.reb4l_base_reroll_cost_bonus
+    end
+    return math.max(0, base)
+end
+
+local function reb4l_apply_reroll_cost_overrides()
+    if not (G.GAME and G.GAME.current_round and G.GAME.round_resets) then return end
+
+    local active_base = G.GAME.round_resets.temp_reroll_cost
+        or G.GAME.round_resets.reroll_cost
+        or reb4l_get_base_reroll_cost()
+
+    if G.GAME.modifiers and G.GAME.modifiers.reb4l_fixed_reroll_cost then
+        local fixed = reb4l_get_base_reroll_cost()
+            + (G.GAME.modifiers.reb4l_fixed_reroll_cost_bonus or 0)
+        G.GAME.round_resets.free_rerolls = 0
+        G.GAME.current_round.free_rerolls = 0
+        G.GAME.current_round.reroll_cost = fixed
+        G.GAME.current_round.reroll_cost_increase = fixed - active_base
+    elseif G.GAME.modifiers and G.GAME.modifiers.reb4l_base_reroll_cost_bonus then
+        G.GAME.current_round.reroll_cost = active_base
+            + (G.GAME.current_round.reroll_cost_increase or 0)
+            + G.GAME.modifiers.reb4l_base_reroll_cost_bonus
+    end
+end
+
+-- Reroll cost overrides:
+-- Black Stake can still add its extra increment here, then Blue Stake's alternate
+-- mode raises the base by $2, and Anchor Deck's fixed-reroll mode clamps the final
+-- cost so vouchers/free rerolls cannot move it away from its deck-defined price.
 local reb4l_orig_calculate_reroll_cost = calculate_reroll_cost
 function calculate_reroll_cost(skip_increment)
     local pre = G.GAME and G.GAME.current_round and (G.GAME.current_round.reroll_cost_increase or 0) or 0
@@ -722,6 +900,13 @@ function calculate_reroll_cost(skip_increment)
                 + G.GAME.current_round.reroll_cost_increase
         end
     end
+    reb4l_apply_reroll_cost_overrides()
+end
+
+local reb4l_orig_game_update_reroll = Game.update
+function Game:update(dt)
+    reb4l_orig_game_update_reroll(self, dt)
+    reb4l_apply_reroll_cost_overrides()
 end
 
 
