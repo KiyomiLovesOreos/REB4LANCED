@@ -194,7 +194,7 @@ end
 
 -- ── Fork Tag Vouchers (Branching-style blind tag picker) ─────────────────────
 -- T1 (v_reb4l_split_tag): current Small/Big blind shows 3 tag choices; skip grants 1.
--- T2 (v_reb4l_fork_tag): same 3 tag choices, but skip grants 2 selected tags.
+-- T2 (v_reb4l_fork_tag): current Small/Big blind shows 3 tag choices; skip grants 2.
 if REB4LANCED.config.fork_tag_vouchers then
 
     local function reb4l_blind_choice_is_current(blind_choice)
@@ -205,19 +205,32 @@ if REB4LANCED.config.fork_tag_vouchers then
             and G.GAME.round_resets.blind_states[blind_choice] == 'Select'
     end
 
+    local function reb4l_should_show_fork_picker(blind_choice)
+        if not (G.GAME and G.GAME.round_resets and G.GAME.round_resets.blind_states) then
+            return false
+        end
+        if blind_choice ~= 'Small' and blind_choice ~= 'Big' then
+            return false
+        end
+        local blind_state = G.GAME.round_resets.blind_states[blind_choice]
+        return blind_state ~= 'Skipped' and blind_state ~= 'Defeated'
+    end
+
     local function reb4l_get_fork_pick_count()
         if not (G.GAME and G.GAME.used_vouchers) then return 0 end
-        if G.GAME.used_vouchers['v_reb4l_fork_tag'] then return 0 end
+        if G.GAME.used_vouchers['v_reb4l_fork_tag'] then return 2 end
         if G.GAME.used_vouchers['v_reb4l_split_tag'] then return 1 end
+        return 0
+    end
+
+    local function reb4l_get_fork_choice_count()
+        local pick_count = reb4l_get_fork_pick_count()
+        if pick_count > 0 then return 3 end
         return 0
     end
 
     local function reb4l_t1_active()
         return reb4l_get_fork_pick_count() == 1
-    end
-
-    local function reb4l_t2_active()
-        return G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_reb4l_fork_tag']
     end
 
     local function reb4l_is_fork_tag_list(ref_table)
@@ -228,10 +241,14 @@ if REB4LANCED.config.fork_tag_vouchers then
 
     local function reb4l_clear_fork_selection(blind_choice)
         if not (G.GAME and G.GAME.round_resets and G.GAME.round_resets.reb4l_blind_tag_choices) then
-            if G.GAME then G.GAME.reb4l_fork_selected_index = nil end
+            if G.GAME then
+                G.GAME.reb4l_fork_selected_index = nil
+                G.GAME.reb4l_fork_selected_indices = nil
+            end
             return
         end
         G.GAME.reb4l_fork_selected_index = nil
+        G.GAME.reb4l_fork_selected_indices = nil
         if blind_choice then
             local state = G.GAME.round_resets.reb4l_blind_tag_choices[blind_choice]
             if state then state.selected = {} end
@@ -242,6 +259,15 @@ if REB4LANCED.config.fork_tag_vouchers then
                 state.selected = {}
             end
         end
+    end
+
+    local function reb4l_store_selected_indices(state)
+        if not G.GAME then return end
+        G.GAME.reb4l_fork_selected_indices = {}
+        for i = 1, #(state and state.selected or {}) do
+            G.GAME.reb4l_fork_selected_indices[i] = state.selected[i]
+        end
+        G.GAME.reb4l_fork_selected_index = G.GAME.reb4l_fork_selected_indices[1]
     end
 
     local function reb4l_clear_fork_popups(blind_choice)
@@ -273,22 +299,24 @@ if REB4LANCED.config.fork_tag_vouchers then
         end
     end
 
-    -- Cache the 3 tag options per blind in round_resets so they survive save/load.
+    -- Cache the fork tag options per blind in round_resets so they survive save/load.
     local function reb4l_get_blind_tag_choice_state(blind_choice)
         local r = G.GAME.round_resets
         r.reb4l_blind_tag_choices = r.reb4l_blind_tag_choices or {}
         if r.reb4l_blind_tag_choices._ante ~= r.ante then
             r.reb4l_blind_tag_choices = { _ante = r.ante }
         end
+        local choice_count = reb4l_get_fork_choice_count()
+        if choice_count == 0 then return nil end
         local state = r.reb4l_blind_tag_choices[blind_choice]
-        if not state or not state.keys or #state.keys < 3 then
+        if not state or not state.keys or #state.keys < choice_count then
             local tag1_key = r.blind_tags and r.blind_tags[blind_choice]
             if not tag1_key then return nil end
 
             local keys = { tag1_key }
             local seen = { [tag1_key] = true }
             local guard = 0
-            while #keys < 3 and guard < 50 do
+            while #keys < choice_count and guard < 80 do
                 local tag_key = get_next_tag_key()
                 if tag_key and not seen[tag_key] then
                     keys[#keys + 1] = tag_key
@@ -296,12 +324,12 @@ if REB4LANCED.config.fork_tag_vouchers then
                 end
                 guard = guard + 1
             end
-            while #keys < 3 do
+            while #keys < choice_count do
                 keys[#keys + 1] = tag1_key
                 guard = guard + 1
             end
             if pseudoshuffle and pseudoseed then
-                pseudoshuffle(keys, pseudoseed('reb4l_split_tag_' .. blind_choice .. '_' .. tostring(r.ante)))
+                pseudoshuffle(keys, pseudoseed('reb4l_fork_tag_' .. blind_choice .. '_' .. tostring(r.ante) .. '_' .. tostring(choice_count)))
             end
             state = { keys = keys, selected = {} }
             r.reb4l_blind_tag_choices[blind_choice] = state
@@ -347,20 +375,22 @@ if REB4LANCED.config.fork_tag_vouchers then
         if pick_count == 1 then
             if state.selected[1] == index then
                 state.selected = {}
-                if G.GAME then G.GAME.reb4l_fork_selected_index = nil end
             else
                 state.selected = { index }
-                if G.GAME then G.GAME.reb4l_fork_selected_index = index end
             end
         else
             local already_selected = false
-            for _, idx in ipairs(state.selected) do
+            local existing_index = nil
+            for i, idx in ipairs(state.selected) do
                 if idx == index then
                     already_selected = true
+                    existing_index = i
                     break
                 end
             end
-            if not already_selected then
+            if already_selected then
+                table.remove(state.selected, existing_index)
+            else
                 state.selected[#state.selected + 1] = index
                 while #state.selected > pick_count do
                     table.remove(state.selected, 1)
@@ -368,7 +398,8 @@ if REB4LANCED.config.fork_tag_vouchers then
                 table.sort(state.selected)
             end
         end
-        reb4l_sync_primary_blind_tag(blind_choice, pick_count)
+        local _, synced_state = reb4l_sync_primary_blind_tag(blind_choice, pick_count)
+        reb4l_store_selected_indices(synced_state or state)
     end
 
     G.FUNCS.reb4l_hover_fork_tag = function(e)
@@ -409,7 +440,16 @@ if REB4LANCED.config.fork_tag_vouchers then
             local has_selection = state and state.selected and state.selected[1]
             for i = 1, #other_tags do
                 if other_tags[i] and other_tags[i].T then
-                    other_tags[i].T.scale = (not has_selection or i == state.selected[1]) and 1 or 0.7
+                    local selected = false
+                    if has_selection then
+                        for _, idx in ipairs(state.selected) do
+                            if i == idx then
+                                selected = true
+                                break
+                            end
+                        end
+                    end
+                    other_tags[i].T.scale = (not has_selection or selected) and 1 or 0.7
                 end
             end
         end
@@ -563,7 +603,7 @@ if REB4LANCED.config.fork_tag_vouchers then
     function create_UIBox_blind_tag(blind_choice, run_info)
         local result = reb4l_orig_create_blind_tag(blind_choice, run_info)
         if not result or run_info then return result end
-        if not (G.GAME and G.GAME.used_vouchers and reb4l_blind_choice_is_current(blind_choice)) then
+        if not (G.GAME and G.GAME.used_vouchers and reb4l_should_show_fork_picker(blind_choice)) then
             return result
         end
 
@@ -590,7 +630,8 @@ if REB4LANCED.config.fork_tag_vouchers then
             return reb4l_orig_hover_tag_proxy(e)
         end
 
-        local selected_index = G.GAME and G.GAME.reb4l_fork_selected_index
+        local pick_state = parent_blind and reb4l_get_blind_tag_choice_state(parent_blind)
+        local selected_index = pick_state and pick_state.selected and pick_state.selected[1]
         local selected_tag = selected_index and e.config.ref_table[selected_index]
         if selected_tag and not selected_tag.get_uibox_table then
             selected_tag = nil
@@ -619,7 +660,7 @@ if REB4LANCED.config.fork_tag_vouchers then
             e.alert = nil
         end
 
-        if selected_tag and parent_blind == current_blind then
+        if selected_tag and parent_blind == current_blind and pick_state and #pick_state.selected >= pick_count then
             e.config.button = 'skip_blind'
             e.config.hover = true
             e.config.colour = G.C.RED
@@ -834,16 +875,15 @@ if REB4LANCED.config.fork_tag_vouchers then
         local skipped = G.GAME and G.GAME.blind_on_deck
         local pick_count = reb4l_get_fork_pick_count()
         local selected_keys = nil
-        local first_tag_key = G.GAME and G.GAME.round_resets and G.GAME.round_resets.blind_tags
-            and skipped and G.GAME.round_resets.blind_tags[skipped]
-        local selected_index = G.GAME and G.GAME.reb4l_fork_selected_index
 
-        if skipped and reb4l_t1_active() and selected_index and e and e.UIBox then
-            local tag_row = e.UIBox:get_UIE_by_ID('tag_' .. skipped)
-            local tag_list = tag_row and tag_row.children and tag_row.children[2]
-                and tag_row.children[2].config and tag_row.children[2].config.ref_table
-            local selected_tag = tag_list and tag_list[selected_index]
-            if selected_tag then
+        if skipped and pick_count > 0 and e and e.UIBox then
+            local state = reb4l_get_blind_tag_choice_state(skipped)
+            reb4l_normalize_tag_selection(state or {}, pick_count)
+            if state and #state.selected >= pick_count then
+                selected_keys = {}
+                for i = 1, pick_count do
+                    selected_keys[i] = state.keys[state.selected[i]]
+                end
                 reb4l_clear_fork_popups(skipped)
                 if e.alert then
                     e.alert:remove()
@@ -870,7 +910,9 @@ if REB4LANCED.config.fork_tag_vouchers then
                     check_for_unlock({ type = 'skip_count' })
                 end
                 if G.GAME then G.GAME.reb4l_tracking_skip = true end
-                add_tag(selected_tag)
+                for i = 1, #selected_keys do
+                    add_tag(Tag(selected_keys[i], nil, skipped))
+                end
                 if G.GAME then G.GAME.reb4l_tracking_skip = false end
                 reb4l_clear_fork_selection(skipped)
 
@@ -903,30 +945,10 @@ if REB4LANCED.config.fork_tag_vouchers then
             end
         end
 
-        if skipped and pick_count > 0 then
-            selected_keys = reb4l_sync_primary_blind_tag(skipped, pick_count)
-        end
         reb4l_orig_skip_t2(e)
         local skip_to = G.GAME and G.GAME.blind_on_deck
         if skipped and pick_count > 0 then
             reb4l_refresh_skip_ui(skipped, skip_to)
-        end
-        if skipped and reb4l_t2_active() then
-            G.E_MANAGER:add_event(Event({
-                trigger = 'after',
-                func = function()
-                    local tag_key = get_next_tag_key()
-                    local guard = 0
-                    while tag_key == first_tag_key and guard < 20 do
-                        guard = guard + 1
-                        tag_key = get_next_tag_key('_reb4l_fork_' .. guard)
-                    end
-                    if G.GAME then G.GAME.reb4l_tracking_skip = true end
-                    add_tag(Tag(tag_key, nil, skipped))
-                    if G.GAME then G.GAME.reb4l_tracking_skip = false end
-                    return true
-                end,
-            }))
         end
     end
 
@@ -1420,6 +1442,17 @@ local reb4l_orig_game_update_reroll = Game.update
 function Game:update(dt)
     reb4l_orig_game_update_reroll(self, dt)
     reb4l_apply_reroll_cost_overrides()
+end
+
+-- Track total tags gained this run for Throwback's tag-scaling mode.
+do
+    local reb4l_orig_add_tag_throwback = add_tag
+    function add_tag(tag, ...)
+        if G.GAME then
+            G.GAME.reb4l_tags_gained = (G.GAME.reb4l_tags_gained or 0) + 1
+        end
+        return reb4l_orig_add_tag_throwback(tag, ...)
+    end
 end
 
 

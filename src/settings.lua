@@ -26,7 +26,7 @@ local defaults = {
     bull_enhanced = false,
     erosion_enhanced = false,
     delayed_grat_mode = 1,
-    throwback_enhanced = false,
+    throwback_enhanced = 1,
     matador_enhanced = false,
     yorick_enhanced = false,
     mr_bones_enhanced = false,
@@ -116,7 +116,11 @@ end
 if type(REB4LANCED.config.anchor_deck) == 'boolean' then
     REB4LANCED.config.anchor_deck = REB4LANCED.config.anchor_deck and 2 or 1
 end
+if type(REB4LANCED.config.throwback_enhanced) == 'boolean' then
+    REB4LANCED.config.throwback_enhanced = REB4LANCED.config.throwback_enhanced and 2 or 1
+end
 REB4LANCED.config.anchor_deck = math.max(1, math.min(3, tonumber(REB4LANCED.config.anchor_deck) or 1))
+REB4LANCED.config.throwback_enhanced = math.max(1, math.min(3, tonumber(REB4LANCED.config.throwback_enhanced) or 1))
 REB4LANCED.config.blue_stake_mode = math.max(1, math.min(2, tonumber(REB4LANCED.config.blue_stake_mode) or 1))
 
 REB4LANCED.UI.options_per_page = 4
@@ -145,7 +149,7 @@ local PRESET_KEYS              = {
     { 'erosion_enhanced',          'bool' },
     { 'campfire_enhanced',         'bool' },
     { 'delayed_grat_mode',         'cycle', 3 },
-    { 'throwback_enhanced',        'bool' },
+    { 'throwback_enhanced',        'cycle', 3 },
     { 'matador_enhanced',          'bool' },
     { 'yorick_enhanced',           'bool' },
     { 'mr_bones_enhanced',         'bool' },
@@ -253,7 +257,7 @@ local SUGGESTED                = {
     erosion_enhanced          = true,
     campfire_enhanced         = true,
     delayed_grat_mode         = 2, -- 1=Vanilla  2=$2/Unused Discard 3=$4 if 0 Used
-    throwback_enhanced        = true,
+    throwback_enhanced        = 2, -- 1=Vanilla  2=X1/Skip          3=X0.5/Tag Gained
     matador_enhanced          = true,
     yorick_enhanced           = false,
     mr_bones_enhanced         = false,
@@ -494,7 +498,7 @@ local function get_category_options(key)
             make_option_box('Erosion', 'X0.15 Mult per card below 52 in deck', 'erosion_enhanced'),
             make_option_box('Campfire', 'X0.1 per sell; loses X0.25 per blind beaten', 'campfire_enhanced'),
             make_cycle_box('Delayed Grat.', 'delayed_grat_mode', { 'Vanilla', '$2/Unused Discard', '$4 if 0 Used' }, 8.5),
-            make_option_box('Throwback', 'X1.0 per skipped blind', 'throwback_enhanced'),
+            make_cycle_box('Throwback', 'throwback_enhanced', { 'Vanilla', 'X1 / Skip', 'X0.5 / Tag' }, 8.5),
             make_option_box('Matador', '$5 per hand played in Boss Blind', 'matador_enhanced'),
             make_option_box('Yorick', '+1 retrigger all cards every 23 hands played', 'yorick_enhanced'),
             make_option_box('Mr. Bones', '25% threshold; destroys rightmost Joker', 'mr_bones_enhanced'),
@@ -626,7 +630,7 @@ local function get_category_options(key)
     elseif key == 'nc_vouchers' then
         return {
             make_option_box('Fork Tag Vouchers',
-                'Split Tags (choose 1 of 2 on skip) and Fork Tags (gain both) + Fork Deck',
+                'Split Tags (choose 1 of 3) and Fork Tags (choose 2 of 3) + Fork Deck',
                 'fork_tag_vouchers'),
         }
     elseif key == 'nc_tags' then

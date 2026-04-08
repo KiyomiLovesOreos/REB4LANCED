@@ -202,7 +202,7 @@ if REB4LANCED.config.fork_tag_vouchers then
 SMODS.Voucher({
     key          = 'split_tag',
     atlas        = 'vouchers',
-    pos          = { x = 0, y = 0 },   -- placeholder sprite; replace when art is ready
+    pos          = { x = 0, y = 0 },
     cost         = 6,
     unlocked     = true,
     discovered   = false,
@@ -211,7 +211,7 @@ SMODS.Voucher({
         name = 'Split Tags',
         text = {
             'When you {C:attention}skip{} a blind,',
-            'choose {C:attention}1{} of {C:attention}2{} offered Tags',
+            'choose {C:attention}1{} of {C:attention}3{} offered Tags',
         },
     },
 })
@@ -229,7 +229,7 @@ SMODS.Voucher({
         name = 'Fork Tags',
         text = {
             'When you {C:attention}skip{} a blind,',
-            'gain {C:attention}both{} Tags',
+            'choose {C:attention}2{} of {C:attention}3{} offered Tags',
         },
     },
 })

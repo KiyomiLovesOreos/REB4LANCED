@@ -553,7 +553,6 @@ JokerDisplay.Definitions["j_delayed_grat"] = {
 }
 
 -- ─── Throwback ────────────────────────────────────────────────────────────────
--- Gain rate changed to X0.5 per skip (vanilla: X0.25).
 -- Value is computed dynamically; vanilla definition pointed at card.ability.x_mult
 -- which is never updated by the REB4LANCED calculate function.
 JokerDisplay.Definitions["j_throwback"] = {
@@ -566,7 +565,10 @@ JokerDisplay.Definitions["j_throwback"] = {
         },
     },
     calc_function = function(card)
-        local xmult = 1 + card.ability.extra * (G.GAME and G.GAME.skips or 0)
+        local count = (REB4LANCED.config.throwback_enhanced == 3)
+            and (G.GAME and G.GAME.reb4l_tags_gained or 0)
+            or (G.GAME and G.GAME.skips or 0)
+        local xmult = 1 + card.ability.extra * count
         card.joker_display_values.xmult = string.format("%.2f", xmult)
     end,
 }
