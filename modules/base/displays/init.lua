@@ -1,0 +1,40 @@
+-- REB4LANCED JokerDisplay Module
+return function(REB4LANCED)
+    if not JokerDisplay then return end
+    local path = REB4LANCED.module_roots.base .. "displays/"
+
+    local function load_display(name)
+        assert(loadfile(path .. name .. ".lua"))()(REB4LANCED)
+    end
+
+    load_display("drunkard")
+    load_display("merry_andy")
+    load_display("satellite")
+    load_display("flower_pot")
+    load_display("mad_joker")
+    load_display("crazy_joker")
+    load_display("droll_joker")
+    load_display("eight_ball")
+    load_display("bloodstone")
+    load_display("hanging_chad")
+    load_display("the_idol")
+    load_display("chicot")
+    load_display("space_joker")
+    load_display("vagabond")
+    load_display("campfire")
+    load_display("madness")
+    load_display("hit_the_road")
+    load_display("diet_cola")
+    load_display("constellation")
+    load_display("superposition")
+    load_display("bootstraps")
+    load_display("bull")
+    load_display("erosion")
+    load_display("delayed_gratification")
+    load_display("throwback")
+    load_display("matador")
+    load_display("yorick")
+    load_display("rough_gem")
+    load_display("seeing_double")
+    load_display("drivers_license")
+end
