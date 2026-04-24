@@ -10,9 +10,7 @@ if REB4LANCED.config.matador_enhanced and G.P_CENTERS.j_matador then G.P_CENTERS
 if REB4LANCED.config.todo_list_enhanced and G.P_CENTERS.j_todo_list and G.P_CENTERS.j_todo_list.config.extra then
     G.P_CENTERS.j_todo_list.config.extra.dollars = 5
 end
--- Obelisk: handled via take_ownership in jokers.lua (config.extra is a table in vanilla; direct replacement would break it)
-if REB4LANCED.config.onyx_agate_enhanced and G.P_CENTERS.j_onyx_agate then G.P_CENTERS.j_onyx_agate.config.extra = 14   end
-if REB4LANCED.config.rough_gem_enhanced  and G.P_CENTERS.j_rough_gem  then G.P_CENTERS.j_rough_gem.config.extra  = 2    end
+-- Obelisk, Onyx Agate, Rough Gem: handled via take_ownership (config.extra is a table in vanilla; direct replacement would break it)
 
 -- Deck config patches
 if REB4LANCED.config.painted_mode and REB4LANCED.config.painted_mode > 1 and G.P_CENTERS.b_painted then G.P_CENTERS.b_painted.config.joker_slot = 0 end

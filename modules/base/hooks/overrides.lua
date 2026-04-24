@@ -7,6 +7,15 @@ function Card:is_suit(suit, bypass_debuff, flush_calc, trying_to_debuff)
         return nil
     end
     if self.ability.effect == 'Stone Card' then
+        -- Paint Bucket: Stone Cards count as all suits
+        if G.jokers then
+            for _, j in ipairs(G.jokers.cards) do
+                if j.config.center.key == 'j_reb4l_paint_bucket' and not j.debuff then
+                    if trying_to_debuff then return false end
+                    return true
+                end
+            end
+        end
         return false
     end
     -- Wild Cards resist suit-based debuffs; count as all suits except the active debuffed suit
@@ -58,6 +67,26 @@ function Blind:debuff_card(card, from_blind)
 end
 
 
+-- Court Jester: rank substitution via Card.get_id
+-- Intercepts every get_id() call so the source rank returns the target rank
+-- universally — scoring, discards, Hit the Road reshuffle, cross-mod jokers, etc.
+local reb4l_cj_get_id = Card.get_id
+function Card:get_id(...)
+    local id = reb4l_cj_get_id(self, ...)
+    if id and G.jokers then
+        for _, j in ipairs(G.jokers.cards) do
+            if j.config.center.key == 'j_reb4l_court_jester'
+                and not j.debuff
+                and j.ability and j.ability.extra
+                and j.ability.extra.source_rank > 0
+                and id == j.ability.extra.source_rank then
+                return j.ability.extra.target_rank
+            end
+        end
+    end
+    return id
+end
+
 -- Edition Tags (enhanced): apply edition to a joker at purchase time
 -- Checks next(self.edition) to treat both nil and empty-table as "no edition".
 local reb4l_orig_buy_card = Card.buy_card
@@ -94,21 +123,6 @@ function Card:buy_card(from_area)
             end
         end
     end
-    return result
-end
-
--- Gold Stake: showdown boss blinds every N antes (controlled by showdown_interval modifier)
--- get_new_boss uses G.GAME.win_ante to determine showdown frequency; we temporarily
--- swap it with showdown_interval so win_ante (run length) stays unaffected.
-local reb4l_orig_get_new_boss = get_new_boss
-function get_new_boss()
-    if not (G.GAME and G.GAME.modifiers and G.GAME.modifiers.showdown_interval) then
-        return reb4l_orig_get_new_boss()
-    end
-    local real_win_ante = G.GAME.win_ante
-    G.GAME.win_ante = G.GAME.modifiers.showdown_interval
-    local result = reb4l_orig_get_new_boss()
-    G.GAME.win_ante = real_win_ante
     return result
 end
 
@@ -168,6 +182,25 @@ do
         if mask then self.ability.name = mask end
         local result = reb4l_orig_calculate_joker(self, context)
         if restore then self.ability.name = restore end
+
+        -- Wilting perishable: inject decaying Xmult into joker result
+        if REB4LANCED.config.stakes_enhanced
+            and REB4LANCED.config.perishable_enhanced == 2
+            and self.ability and self.ability.perishable
+            and context and context.joker_main
+            and result ~= nil then
+            local mx = (G.GAME and G.GAME.reb4l_wilt_max) or 10
+            local tally = self.ability.reb4l_wilt_tally or 0
+            local xm = math.max(0, 1 - tally / mx)
+            if xm < 1 then
+                if type(result) == 'table' then
+                    result.xmult = (result.xmult or 1) * xm
+                else
+                    result = { xmult = xm }
+                end
+            end
+        end
+
         return result
     end
 end
@@ -546,39 +579,6 @@ if REB4LANCED.config.fork_tag_vouchers then
         }}
     end
 
-    function reb4l_refresh_blind_option(blind_choice)
-        if not (blind_choice and G.blind_select_opts and G.blind_select_opts[string.lower(blind_choice)]) then
-            return
-        end
-        local key = string.lower(blind_choice)
-        local current_box = G.blind_select_opts[key]
-        local parent = current_box and current_box.parent
-        if not parent then return end
-
-        current_box:remove()
-        G.blind_select_opts[key] = UIBox{
-            T = {parent.T.x, 0, 0, 0},
-            definition = {n=G.UIT.ROOT, config={align = "cm", colour = G.C.CLEAR}, nodes={
-                UIBox_dyn_container(
-                    {create_UIBox_blind_choice(blind_choice, G.SETTINGS.paused)},
-                    false,
-                    get_blind_main_colour(blind_choice),
-                    mix_colours(G.C.BLACK, get_blind_main_colour(blind_choice), 0.8)
-                )
-            }},
-            config = {
-                align = "bmi",
-                offset = {x = 0, y = G.ROOM.T.y + 9},
-                major = parent,
-                xy_bond = 'Weak',
-            }
-        }
-        parent.config.object = G.blind_select_opts[key]
-        parent.config.object:recalculate()
-        G.blind_select_opts[key].parent = parent
-        G.blind_select_opts[key].alignment.offset.y = 0
-    end
-
     local function reb4l_refresh_skip_ui(skipped, skip_to)
         if not G.E_MANAGER then return end
         G.E_MANAGER:add_event(Event({
@@ -954,6 +954,40 @@ if REB4LANCED.config.fork_tag_vouchers then
 
 end -- REB4LANCED.config.fork_tag_vouchers
 
+-- Shared by draft deck and fork tag vouchers; always defined regardless of config flags.
+function reb4l_refresh_blind_option(blind_choice)
+    if not (blind_choice and G.blind_select_opts and G.blind_select_opts[string.lower(blind_choice)]) then
+        return
+    end
+    local key = string.lower(blind_choice)
+    local current_box = G.blind_select_opts[key]
+    local parent = current_box and current_box.parent
+    if not parent then return end
+
+    current_box:remove()
+    G.blind_select_opts[key] = UIBox{
+        T = {parent.T.x, 0, 0, 0},
+        definition = {n=G.UIT.ROOT, config={align = "cm", colour = G.C.CLEAR}, nodes={
+            UIBox_dyn_container(
+                {create_UIBox_blind_choice(blind_choice, G.SETTINGS.paused)},
+                false,
+                get_blind_main_colour(blind_choice),
+                mix_colours(G.C.BLACK, get_blind_main_colour(blind_choice), 0.8)
+            )
+        }},
+        config = {
+            align = "bmi",
+            offset = {x = 0, y = G.ROOM.T.y + 9},
+            major = parent,
+            xy_bond = 'Weak',
+        }
+    }
+    parent.config.object = G.blind_select_opts[key]
+    parent.config.object:recalculate()
+    G.blind_select_opts[key].parent = parent
+    G.blind_select_opts[key].alignment.offset.y = 0
+end
+
 -- Edition Tags: apply pending edition when buying an editionless joker from the shop.
 -- The apply function in tags.lua blocks vanilla's new_blind_choice and store_joker_modify
 -- contexts (returning true keeps the tag alive without triggering it). This hook fires
@@ -1018,29 +1052,6 @@ function Card:set_base(card, initial)
                 end
             end
         end
-    elseif G.GAME.reb4l_deck == 'abandoned' then
-        local rank = SMODS.Ranks[self.base.value]
-        if rank and rank.face then
-            local suit_obj = SMODS.Suits[self.base.suit]
-            if suit_obj then
-                local candidates = {}
-                for _, r in pairs(SMODS.Ranks) do
-                    if not r.face then
-                        local base_key = suit_obj.card_key .. "_" .. r.card_key
-                        if G.P_CARDS[base_key] then
-                            candidates[#candidates + 1] = G.P_CARDS[base_key]
-                        end
-                    end
-                end
-                if #candidates > 0 then
-                    table.sort(candidates, function(a, b) return (a.name or "") < (b.name or "") end)
-                    self:set_base(
-                        pseudorandom_element(candidates, pseudoseed('reb4l_abandoned')),
-                        initial
-                    )
-                end
-            end
-        end
     end
 
     return output
@@ -1061,22 +1072,6 @@ function Game:update(dt)
     end
 end
 
--- Black Deck: apply ante 0 after start_run initializes everything
-if REB4LANCED.config.black_deck_enhanced then
-    local reb4l_orig_start_run = Game.start_run
-    function Game:start_run(args)
-        reb4l_orig_start_run(self, args)
-        if self.GAME and self.GAME.modifiers and self.GAME.modifiers.reb4l_start_ante_zero
-            and not (args and args.savetext) then
-            self.GAME.round_resets.ante = 0
-            self.GAME.round_resets.ante_disp = number_format(0)
-            self.GAME.round_resets.blind_ante = 0
-            self.GAME.round_resets.blind_choices.Boss = get_new_boss()
-            self.GAME.round_resets.blind_tags.Small = get_next_tag_key()
-            self.GAME.round_resets.blind_tags.Big = get_next_tag_key()
-        end
-    end
-end
 
 -- ── Magic Trick / Illusion helpers (modelled after QoL Bundle) ───────────────
 
@@ -1213,12 +1208,19 @@ function create_card_for_shop(area)
     return card
 end
 
--- Card:set_cost override: ensure from_tag couponed cards are always free
+-- Card:set_cost override: ensure from_tag couponed cards are always free;
+-- apply Purple Stake voucher surcharge.
 local reb4l_orig_set_cost = Card.set_cost
 function Card:set_cost()
     reb4l_orig_set_cost(self)
     if self.from_tag and self.ability and self.ability.couponed then
         self.cost = 0
+    end
+    if G.GAME and G.GAME.modifiers and G.GAME.modifiers.reb4l_voucher_cost_bonus
+        and self.ability and self.ability.set == 'Voucher' then
+        self.cost = self.cost + G.GAME.modifiers.reb4l_voucher_cost_bonus
+        self.sell_cost = math.max(0, math.floor(self.cost / 2) + (self.ability.extra_value or 0))
+        self.sell_cost_label = self.sell_cost
     end
 end
 
@@ -1274,20 +1276,19 @@ end
 -- Falls back to vanilla if stake_scaling_enhanced is off, no active game, or mod stake.
 local reb4l_orig_get_blind_amount = get_blind_amount
 function get_blind_amount(ante)
+    local amount
     if REB4LANCED.config.stake_scaling_enhanced
         and G.GAME and G.GAME.stake then
         local stake = reb4l_stake_index[SMODS.stake_from_index(G.GAME.stake)]
         if stake then
-            if ante < 1 then return 100 end
-            if ante <= 8 then
-                return reb4l_base_chips[stake][ante]
-            else
-                local vw = reb4l_vanilla_white(ante)
-                return math.ceil(reb4l_base_chips[stake][8] / 50000 * vw)
+            if ante < 1 then amount = 100
+            elseif ante <= 8 then amount = reb4l_base_chips[stake][ante]
+            else amount = math.ceil(reb4l_base_chips[stake][8] / 50000 * reb4l_vanilla_white(ante))
             end
         end
     end
-    return reb4l_orig_get_blind_amount(ante)
+    if not amount then amount = reb4l_orig_get_blind_amount(ante) end
+    return amount
 end
 
 -- Red Stake: also show reduced payout on the blind select screen.
@@ -1344,6 +1345,56 @@ SMODS.calculate_context = function(ctx, ...)
             REB4LANCED.black_reshuffle[#REB4LANCED.black_reshuffle + 1] = c
         end
     end
+
+    -- Wilting perishable (mode 2): decay per hand played
+    if ctx.after and ctx.main_eval and ctx.game_over == false
+        and REB4LANCED.config.stakes_enhanced
+        and REB4LANCED.config.perishable_enhanced == 2
+        and G.jokers then
+        for _, card in ipairs(G.jokers.cards) do
+            if card.ability and card.ability.perishable and not card.debuff then
+                local mx = (G.GAME and G.GAME.reb4l_wilt_max) or 10
+                card.ability.reb4l_wilt_tally = (card.ability.reb4l_wilt_tally or 0) + 1
+                if card.ability.reb4l_wilt_tally >= mx then
+                    G.E_MANAGER:add_event(Event({ func = function()
+                        card_eval_status_text(card, 'extra', nil, nil, nil,
+                            { message = 'Wilted!', colour = G.C.RED })
+                        card:start_dissolve()
+                        return true
+                    end }))
+                else
+                    card_eval_status_text(card, 'extra', nil, nil, nil,
+                        { message = 'Wilting!', colour = G.C.RED })
+                end
+            end
+        end
+    end
+
+    -- Sell Decay perishable (mode 3): decay per round
+    if ctx.end_of_round and ctx.main_eval and ctx.game_over == false
+        and REB4LANCED.config.stakes_enhanced
+        and REB4LANCED.config.perishable_enhanced == 3
+        and G.jokers then
+        for _, card in ipairs(G.jokers.cards) do
+            if card.ability and card.ability.perishable and not card.debuff then
+                card.sell_cost       = math.max(0, (card.sell_cost or 1) - 1)
+                card.sell_cost_label = card.sell_cost
+                if card.sell_cost <= 0 then
+                    G.E_MANAGER:add_event(Event({ func = function()
+                        card_eval_status_text(card, 'extra', nil, nil, nil,
+                            { message = 'Expired!', colour = G.C.RED })
+                        card:start_dissolve()
+                        return true
+                    end }))
+                else
+                    card_eval_status_text(card, 'extra', nil, nil, nil,
+                        { message = localize('$') .. card.sell_cost .. ' left',
+                          colour  = G.C.MONEY })
+                end
+            end
+        end
+    end
+
     return reb4l_orig_calculate_context(ctx, ...)
 end
 

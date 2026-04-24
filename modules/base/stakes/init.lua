@@ -6,6 +6,13 @@ return function(REB4LANCED)
         assert(loadfile(path .. name .. ".lua"))()(REB4LANCED)
     end
 
+    SMODS.Atlas({
+        key  = 'reb4l_stickers',
+        path = 'Stickers.png',
+        px   = 71,
+        py   = 95,
+    })
+
     load_stake("red_stake")
     load_stake("green_stake")
     load_stake("black_stake")

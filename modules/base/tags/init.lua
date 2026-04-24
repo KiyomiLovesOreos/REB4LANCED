@@ -6,6 +6,9 @@ return function(REB4LANCED)
         assert(loadfile(path .. name .. ".lua"))()(REB4LANCED)
     end
 
+    load_tag("atlas")
+    load_tag("grasp")
+    load_tag("surplus")
     load_tag("negative")
     load_tag("foil")
     load_tag("holo")

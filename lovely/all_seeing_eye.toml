@@ -1,0 +1,79 @@
+[manifest]
+version = "1.0.0"
+priority = -1
+
+# Make 'scry' area cards render face-up (same branch as hand/play/voucher cards).
+# overwrite = true so the line is replaced rather than duplicated.
+# If Pokermon is also installed it will have already changed this line;
+# Lovely will silently skip this patch in that case (pattern not found).
+[[patches]]
+[patches.pattern]
+target = "cardarea.lua"
+pattern = "if self.config.type == 'hand' or self.config.type == 'play' or self.config.type == 'title' or self.config.type == 'voucher' then"
+position = "at"
+payload = "if self.config.type == 'hand' or self.config.type == 'scry' or self.config.type == 'play' or self.config.type == 'title' or self.config.type == 'voucher' then"
+match_indent = true
+overwrite = true
+
+# Allow scry cards to show/sort as if they were hand cards.
+[[patches]]
+[patches.pattern]
+target = "cardarea.lua"
+pattern = "if self.config.type == 'hand' and not (G.STATE == G.STATES.TAROT_PACK or G.STATE == G.STATES.SPECTRAL_PACK or G.STATE == G.STATES.PLANET_PACK or G.STATE == G.STATES.SMODS_BOOSTER_OPENED) then"
+position = "at"
+payload = "if self.config.type == 'scry' or self.config.type == 'hand' and not (G.STATE == G.STATES.TAROT_PACK or G.STATE == G.STATES.SPECTRAL_PACK or G.STATE == G.STATES.PLANET_PACK or G.STATE == G.STATES.SMODS_BOOSTER_OPENED) then"
+match_indent = true
+overwrite = true
+
+# Create/update the scry view each frame while selecting a hand.
+[[patches]]
+[patches.pattern]
+target = "game.lua"
+pattern = "function Game:update_selecting_hand(dt)"
+position = "after"
+payload = '''
+    if not self.scry_view and type(create_scry_cardarea) == "function" then
+        self.scry_view = create_scry_cardarea()
+    elseif self.scry_view then
+        update_scry_cardarea(self.scry_view)
+    end
+'''
+match_indent = true
+
+# Hide scry view during round evaluation.
+[[patches]]
+[patches.pattern]
+target = "game.lua"
+pattern = "function Game:update_round_eval(dt)"
+position = "after"
+payload = '''
+    if G.scry_view then hide_scry_cardarea() end
+'''
+match_indent = true
+
+# Include scry view cards in playing card evaluation.
+[[patches]]
+[patches.pattern]
+target = '=[SMODS _ "src/utils.lua"]'
+pattern = "-- TARGET: add your own CardAreas for playing card evaluation"
+position = "after"
+payload = '''
+if G.scry_view and G.scry_view.cards then
+    t[#t+1] = G.scry_view
+end
+'''
+match_indent = true
+
+# Position scry cards above the deck.
+[[patches]]
+[patches.pattern]
+target = "functions/common_events.lua"
+pattern = "local config = {}"
+position = "before"
+payload = '''
+if card.area == G.scry_view then
+    y_off = -0.05*G.CARD_H
+    card_aligned = 'tm'
+end
+'''
+match_indent = true

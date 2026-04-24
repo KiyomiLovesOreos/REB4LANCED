@@ -10,6 +10,19 @@ return function(REB4LANCED)
         assert(loadfile(path .. "spectrals/" .. name .. ".lua"))()(REB4LANCED)
     end
 
+    local function load_axiom(name)
+        assert(loadfile(path .. "axioms/" .. name .. ".lua"))()(REB4LANCED)
+    end
+
+    if REB4LANCED.config.axiom_set then
+        load_axiom("atlas")
+        load_axiom("type")
+        load_axiom("hooks")
+        load_axiom("observe")
+        load_axiom("return_card")
+        load_axiom("reframe")
+        load_axiom("persist")
+    end
     load_tarot("empress")
     load_tarot("heirophant")
     load_tarot("chariot")

@@ -7,6 +7,8 @@ return function(REB4LANCED)
     end
 
     load_deck("atlas")
+    load_deck("erratic")
+    load_deck("plasma")
     load_deck("abandoned")
     load_deck("checkered")
     load_deck("anaglyph")
@@ -18,5 +20,7 @@ return function(REB4LANCED)
     load_deck("workshop")
     load_deck("fork")
     load_deck("magician")
+    load_deck("draft")
+    load_deck("all_seeing_eye")
     load_deck("burnt_legacy")
 end

@@ -25,6 +25,17 @@ SMODS.Back({
                 end
             }))
         end
+        -- Blind select UI for ante 1 is built during start_run before apply fires.
+        -- Queue a refresh so the fork tag picker shows on the first blind select screen.
+        G.E_MANAGER:add_event(Event({
+            func = function()
+                if G.blind_select_opts then
+                    reb4l_refresh_blind_option('Small')
+                    reb4l_refresh_blind_option('Big')
+                end
+                return true
+            end
+        }))
     end,
 })
 end

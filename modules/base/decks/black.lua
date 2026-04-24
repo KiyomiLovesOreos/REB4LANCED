@@ -13,7 +13,23 @@ SMODS.Back:take_ownership('black', {
         return { vars = {} }
     end,
     apply = function(self, back)
-        G.GAME.modifiers.reb4l_start_ante_zero = true
+        G.E_MANAGER:add_event(Event({
+            trigger = 'after', delay = 0.5,
+            func = function()
+                local rr = G.GAME and G.GAME.round_resets
+                if rr then
+                    rr.ante      = 0
+                    rr.ante_disp = number_format(0)
+                    rr.blind_ante = 0
+                    if rr.blind_choices then rr.blind_choices.Boss = get_new_boss() end
+                    if rr.blind_tags then
+                        rr.blind_tags.Small = get_next_tag_key()
+                        rr.blind_tags.Big   = get_next_tag_key()
+                    end
+                end
+                return true
+            end
+        }))
     end,
 }, false)
 end

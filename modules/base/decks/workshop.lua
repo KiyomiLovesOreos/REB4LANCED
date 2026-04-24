@@ -9,8 +9,7 @@ SMODS.Back({
         name = 'Workshop Deck',
         text = {
             'Start with {C:attention,T:v_overstock_norm}Overstock{}',
-            'and {C:attention,T:v_clearance_sale}Clearance Sale{} vouchers,',
-            '{C:red}-1{} Hand per round',
+            'and {C:attention,T:v_clearance_sale}Clearance Sale{} vouchers',
         },
     },
     config = {},
@@ -27,13 +26,6 @@ SMODS.Back({
                 end
             }))
         end
-        G.E_MANAGER:add_event(Event({
-            func = function()
-                G.GAME.round_resets.hands = G.GAME.round_resets.hands - 1
-                G.GAME.current_round.hands_left = G.GAME.current_round.hands_left - 1
-                return true
-            end
-        }))
     end,
 })
 end
