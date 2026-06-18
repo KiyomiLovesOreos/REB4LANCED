@@ -1,0 +1,40 @@
+[manifest]
+version = "1.0.0"
+dump_lua = true
+priority = -1
+
+# Anaglyph Deck rework: suppress the vanilla boss-beat Double Tag addition.
+# When anaglyph_enhanced is active, Anaglyph no longer auto-generates a Double Tag
+# after each boss blind. Instead, any Double Tags already held will copy all incoming
+# tags (including other Double Tags) via the Double Tag's take_ownership in tags.lua.
+[[patches]]
+[patches.pattern]
+target = "back.lua"
+pattern = '''
+    if self.name == 'Anaglyph Deck' and args.context == 'eval' and G.GAME.last_blind and G.GAME.last_blind.boss then
+        G.E_MANAGER:add_event(Event({
+            func = (function()
+                add_tag(Tag('tag_double'))
+                play_sound('generic1', 0.9 + math.random()*0.1, 0.8)
+                play_sound('holo1', 1.2 + math.random()*0.1, 0.4)
+                return true
+            end)
+        }))
+    end
+'''
+position = "at"
+payload = '''
+    if self.name == 'Anaglyph Deck' and args.context == 'eval' and G.GAME.last_blind and G.GAME.last_blind.boss then
+        if not (REB4LANCED and REB4LANCED.config and REB4LANCED.config.anaglyph_enhanced) then
+            G.E_MANAGER:add_event(Event({
+                func = (function()
+                    add_tag(Tag('tag_double'))
+                    play_sound('generic1', 0.9 + math.random()*0.1, 0.8)
+                    play_sound('holo1', 1.2 + math.random()*0.1, 0.4)
+                    return true
+                end)
+            }))
+        end
+    end
+'''
+match_indent = true
