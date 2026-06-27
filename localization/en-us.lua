@@ -1,14 +1,43 @@
 local loc = {
     misc = {
+        challenge_names = {
+            c_reb4l_drifting = "Drifting",
+        },
         variables = {
             a_discards = "+#1# Discard",
+        },
+        v_text = {
+            ch_c_reb4l_drifting = {
+                "All {C:attention}Joker{} values are {C:red}randomized{} {C:attention}0.25-2×{} and {C:attention}hidden{}"
+            },
+        },
+    },
+    descriptions = {
+        Challenge = {
+            c_reb4l_drifting = {
+                name = "Drifting",
+                text = {
+                    "All {C:attention}Joker{} values are",
+                    "{C:red}randomized{} {C:attention}0.25-2×{}",
+                    "and {C:inactive}hidden{}",
+                },
+            },
+        },
+        Rule = {
+            reb4l_drifting = {
+                name = "Drifting",
+                text = {
+                    "All {C:attention}Joker{} values are",
+                    "{C:red}randomized{} {C:attention}0.25-2×{}",
+                    "and {C:inactive}hidden{}",
+                },
+            },
         },
     },
 }
 
 if REB4LANCED.config.stakes_enhanced then
-    loc.descriptions = {
-        Stake = {
+    loc.descriptions.Stake = {
             stake_red = {
                 text = {
                     "All {C:attention}blind payouts{} reduced by {C:money}$1",
@@ -68,7 +97,6 @@ if REB4LANCED.config.stakes_enhanced then
                     "{s:0.8}Applies all previous Stakes",
                 },
             },
-        },
     }
 end
 

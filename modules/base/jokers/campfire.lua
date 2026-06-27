@@ -42,6 +42,22 @@ SMODS.Joker:take_ownership('campfire', {
         end
     end,
 }, false)
+
+    if JokerDisplay then
+        -- ─── Campfire ────────────────────────────────────────────────────────────────
+        -- xmult moved from card.ability.x_mult to card.ability.extra.xmult.
+        JokerDisplay.Definitions["j_campfire"] = {
+            text = {
+                {
+                    border_nodes = {
+                        { text = "X" },
+                        { ref_table = "card.ability.extra", ref_value = "xmult", retrigger_type = "exp" },
+                    },
+                },
+            },
+        }
+    end
+
 end -- REB4LANCED.config.campfire_enhanced
 
 end

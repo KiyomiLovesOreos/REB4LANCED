@@ -16,7 +16,7 @@ end
 -- Deck config patches
 if REB4LANCED.config.painted_mode and REB4LANCED.config.painted_mode > 1 and G.P_CENTERS.b_painted then G.P_CENTERS.b_painted.config.joker_slot = 0 end
 if REB4LANCED.config.nebula_enhanced  and G.P_CENTERS.b_nebula  then G.P_CENTERS.b_nebula.config.consumable_slot = 0 end
-if G.P_CENTERS.b_green then
+if REB4LANCED.config.green_enhanced and G.P_CENTERS.b_green then
     G.P_CENTERS.b_green.config.extra_hand_bonus    = 3
     G.P_CENTERS.b_green.config.extra_discard_bonus = 2
 end

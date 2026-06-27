@@ -34,7 +34,7 @@ SMODS.Seal:take_ownership('Blue', {
             local seal = card.ability.seal
             local hand_size = G.GAME.reb4l_blue_seal_size or 0
             local hand_type = G.GAME.reb4l_blue_seal_hand
-            if hand_type and pseudorandom(pseudoseed('blue_seal')) < hand_size / seal.extra.odds then
+            if hand_type and pseudorandom('reb4l_blue_seal') < hand_size / seal.extra.odds then
                 G.GAME.consumeable_buffer = G.GAME.consumeable_buffer + 1
                 G.E_MANAGER:add_event(Event({
                     trigger = 'before',

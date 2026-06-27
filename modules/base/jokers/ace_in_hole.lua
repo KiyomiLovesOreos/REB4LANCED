@@ -16,7 +16,7 @@ SMODS.Joker({
     loc_txt = {
         name = 'Ace in the Hole',
         text = {
-            '{C:attention}Aces{} of #1#',
+            '{C:attention}Aces{} of {V:1}#1#{}',
             'score {X:mult,C:white} X3 {} Mult',
             'on your {C:attention}last hand{}',
             '{C:inactive}(Suit changes each blind)',
@@ -24,7 +24,7 @@ SMODS.Joker({
     },
     loc_vars = function(self, info_queue, card)
         local suit = card.ability.extra.suit or 'Spades'
-        return { vars = { localize(suit, 'suits_plural') }, colours = { G.C.SUITS[suit] } }
+        return { vars = { localize(suit, 'suits_plural'), colours = { G.C.SUITS[suit] } } }
     end,
     calculate = function(self, card, context)
         if context.setting_blind then

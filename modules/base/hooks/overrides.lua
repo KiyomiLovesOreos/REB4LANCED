@@ -20,15 +20,6 @@ function Card:is_suit(suit, bypass_debuff, flush_calc, trying_to_debuff)
         return nil
     end
     if self.ability.effect == 'Stone Card' then
-        -- Paint Bucket: Stone Cards count as all suits
-        if G.jokers then
-            for _, j in ipairs(G.jokers.cards) do
-                if j.config.center.key == 'j_reb4l_paint_bucket' and not j.debuff then
-                    if trying_to_debuff then return false end
-                    return true
-                end
-            end
-        end
         return false
     end
     -- Wild Cards resist suit-based debuffs; count as all suits except the active debuffed suit
@@ -182,6 +173,63 @@ if REB4LANCED.config.chicot_mode ~= 1 then
     end
 end
 
+-- ─── Drifting challenge: randomize joker values in add_to_deck ────────────────
+do
+    local reb4l_drifting_blacklist = {
+        odds = true,
+        chance = true,
+        reset_chance = true,
+        probability = true,
+    }
+
+    local function reb4l_drifting_apply_mult(val, multiplier)
+        if type(val) ~= "number" then return val end
+        local new_val = val * multiplier
+        if math.abs(val) >= 1 then
+            return math.floor(new_val + 0.5)
+        else
+            return new_val
+        end
+    end
+
+    local function reb4l_drifting_randomize_table(tbl, multiplier, depth)
+        depth = depth or 0
+        if depth > 3 then return end
+        for k, v in pairs(tbl) do
+            if reb4l_drifting_blacklist[k] then
+                -- skip
+            elseif type(v) == "number" then
+                if k ~= "x_mult" or v > 1 then
+                    tbl[k] = reb4l_drifting_apply_mult(v, multiplier)
+                end
+            elseif type(v) == "table" then
+                reb4l_drifting_randomize_table(v, multiplier, depth + 1)
+            end
+        end
+    end
+
+    local reb4l_drifting_orig_add_to_deck = Card.add_to_deck
+    function Card:add_to_deck(from_debuff)
+        reb4l_drifting_orig_add_to_deck(self, from_debuff)
+        if G.GAME and G.GAME.modifiers and G.GAME.modifiers.reb4l_drifting_active
+            and self.config and self.config.center and self.config.center.set == "Joker"
+            and self.ability and not self.ability.reb4l_drifting_applied then
+            -- Copy base values from center.config.extra to ability if not already present
+            if self.config.center.config and self.config.center.config.extra and type(self.config.center.config.extra) == "table" then
+                for k, v in pairs(self.config.center.config.extra) do
+                    if type(v) == "number" and not self.ability[k] then
+                        self.ability[k] = v
+                    end
+                end
+            end
+            local seed_str = 'drifting_' .. (self.config.center.key or '0') .. '_' .. (self.unique_val or self.ID or '0')
+            local multiplier = 0.5 + pseudorandom(seed_str) * 1.0
+            reb4l_drifting_randomize_table(self.ability, multiplier)
+            self.ability.reb4l_drifting_applied = true
+        end
+    end
+end
+
 do
     local reb4l_orig_calculate_joker = Card.calculate_joker
     function Card:calculate_joker(context)
@@ -217,6 +265,32 @@ do
                     result.xmult = (result.xmult or 1) * xm
                 else
                     result = { xmult = xm }
+                end
+            end
+        end
+
+        -- Drifting challenge: store randomization multiplier in ability on first call
+        if G.GAME and G.GAME.modifiers and G.GAME.modifiers.reb4l_drifting_active
+            and self.config and self.config.center and self.config.center.set == "Joker"
+            and self.ability and not self.ability.reb4l_drifting_mult then
+            local seed_str = 'drifting_' .. (self.config.center.key or '0') .. '_' .. (self.unique_val or self.ID or '0')
+            self.ability.reb4l_drifting_mult = 0.25 + pseudorandom(seed_str) * 1.75
+        end
+
+        -- Apply stored drifting multiplier to result
+        if result and G.GAME and G.GAME.modifiers and G.GAME.modifiers.reb4l_drifting_active
+            and self.config and self.config.center and self.config.center.set == "Joker"
+            and self.ability and self.ability.reb4l_drifting_mult then
+            -- Convert scalar results to table
+            if type(result) ~= 'table' then
+                result = { mult = result }
+            end
+            -- Apply stored multiplier to result values
+            local multiplier = self.ability.reb4l_drifting_mult
+            for _, stat in ipairs({'mult', 'xmult', 'chips', 'dollars'}) do
+                if result[stat] then
+                    local new_val = result[stat] * multiplier
+                    result[stat] = math.abs(result[stat]) >= 1 and math.floor(new_val + 0.5) or new_val
                 end
             end
         end
@@ -1189,7 +1263,7 @@ function create_card_for_shop(area)
     -- Telescope: 50% chance to replace a shop Planet with most-played hand's planet
     if card and card.ability and card.ability.set == 'Planet'
         and G.GAME and G.GAME.used_vouchers and G.GAME.used_vouchers['v_telescope'] then
-        if pseudorandom(pseudoseed('reb4l_telescope')) < 0.5 then
+        if pseudorandom(pseudoseed('reb4l_telescope')) < 1/3 then
             local best_hand, best_tally = nil, 0
             for _, handname in ipairs(G.handlist) do
                 if SMODS.is_poker_hand_visible and SMODS.is_poker_hand_visible(handname)
@@ -1659,8 +1733,13 @@ function SMODS.get_probability_vars(trigger_obj, base_numerator, base_denominato
 
     if no_mod or not G.jokers then return num, den end
 
+    local slc_boost = 0
     local no_sixes = 0
-    -- Iterate over all joker areas to find Oops! No Sixes and its copies
+    -- Read SLC boost from global (set by context.before, proven to work)
+    if G.GAME and G.GAME.reb4l_slc_odds then
+        slc_boost = G.GAME.reb4l_slc_odds
+    end
+    -- Iterate joker areas for Oops! No Sixes only
     for _, area in ipairs(SMODS.get_card_areas('jokers')) do
         if area.cards then
             for _, c in ipairs(area.cards) do
@@ -1677,9 +1756,63 @@ function SMODS.get_probability_vars(trigger_obj, base_numerator, base_denominato
         end
     end
 
+    if slc_boost > 0 then
+        num = num + slc_boost
+    end
+
     if no_sixes > 0 then
         den = den * (2 ^ no_sixes)
     end
 
+
     return num, den
 end
+
+-- Draft Deck: allow identity checks against drafted decks
+-- The game checks selected_back.effect.center.key to decide deck behavior (Plasma
+-- scoring, Abandoned no-faces, Ghost spectral shop, etc.). When playing the Draft
+-- Deck, also check if any drafted deck matches.
+function reb4l_draft_has_deck(key)
+    if not G.GAME or not G.GAME.modifiers or not G.GAME.modifiers.reb4l_draft_choices then return false end
+    for _, k in ipairs(G.GAME.modifiers.reb4l_draft_choices) do
+        if k == key then return true end
+    end
+    return false
+end
+
+-- ─── Drifting challenge: hide numbers in joker/consumable tooltips ──────────
+-- Hook Card:generate_UIBox_ability_table and replace all numbers with "?".
+-- This catches everything regardless of how loc_vars works (matches REW1RED's
+-- Chaos challenge approach rather than fragile per-center loc_vars wrapping).
+
+local reb4l_drifting_hide_in_table
+reb4l_drifting_hide_in_table = function(node, visited)
+    if not node or type(node) ~= "table" then return end
+    visited = visited or {}
+    if visited[node] then return end
+    visited[node] = true
+    if node.config and node.config.text and type(node.config.text) == "string" then
+        -- Replace any standalone number (possibly with + or - prefix) with "?"
+        local replaced = node.config.text:gsub("[%-%+]?%d+%.?%d*", "?")
+        if replaced ~= node.config.text then
+            node.config.text = replaced
+        end
+    end
+    for k, v in pairs(node) do
+        if type(v) == "table" and k ~= "config" then
+            reb4l_drifting_hide_in_table(v, visited)
+        end
+    end
+end
+
+local reb4l_orig_generate_ui = Card.generate_UIBox_ability_table
+function Card:generate_UIBox_ability_table(...)
+    local result = reb4l_orig_generate_ui(self, ...)
+    if result and G.GAME and (G.GAME.challenge == 'c_reb4l_drifting' or G.GAME.challenge == 'drifting' or (G.GAME.modifiers and G.GAME.modifiers.reb4l_drifting_active)) then
+        if self.config and self.config.center and self.config.center.set == "Joker" then
+            reb4l_drifting_hide_in_table(result)
+        end
+    end
+    return result
+end
+

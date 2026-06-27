@@ -718,57 +718,131 @@ end
 
 SMODS.current_mod.extra_tabs = function()
     local scale = 0.5
+    -- Color palette for contributors
+    local CREDITS_COLORS = {
+        amolyte = HEX('7BF2FF'),      -- Cyan
+        adumbasswaffle = HEX('F48CBA'), -- Salmon/Pink
+        lapsem = HEX('0AC400'),       -- Lime Green
+        duplexme = HEX('C77DFF'),     -- Violet/Purple
+        guarana = HEX('FF8C42'),      -- Warm Orange
+        adefmor = HEX('e6bb12'),      -- Gold
+        suggestions = HEX('b8c7d4'),  -- Light Blue
+    }
     return {
         label = "Credits",
         tab_definition_function = function()
             return {
                 n = G.UIT.ROOT,
-                config = { align = 'cm', padding = 0.05, colour = G.C.CLEAR },
+                config = { align = 'cm', padding = 0.05, colour = G.C.BLACK, r = 0.1, emboss = 0.05 },
                 nodes = {
+                    -- Two-column row
                     {
                         n = G.UIT.R,
-                        config = { padding = 0.05, align = 'cm' },
-                        nodes = { { n = G.UIT.T, config = { text = "Programmer & Artist", shadow = false, scale = scale * 0.8, colour = G.C.UI.TEXT_LIGHT } } }
-                    },
-                    {
-                        n = G.UIT.R,
-                        config = { padding = 0.02, align = 'cm' },
-                        nodes = { { n = G.UIT.T, config = { text = "Amolyte (Amo)", shadow = false, scale = scale, colour = G.C.PURPLE } } }
-                    },
-                    {
-                        n = G.UIT.R,
-                        config = { padding = 0.05, align = 'cm' },
-                        nodes = { { n = G.UIT.T, config = { text = "Artist", shadow = false, scale = scale * 0.8, colour = G.C.UI.TEXT_LIGHT } } }
-                    },
-                    {
-                        n = G.UIT.R,
-                        config = { padding = 0.02, align = 'cm' },
-                        nodes = { { n = G.UIT.T, config = { text = "adumbasswaffle", shadow = false, scale = scale, colour = G.C.MONEY } } }
-                    },
-                    {
-                        n = G.UIT.R,
-                        config = { padding = 0.02, align = 'cm' },
-                        nodes = { { n = G.UIT.T, config = { text = "Lapsem_", shadow = false, scale = scale, colour = G.C.MONEY } } }
-                    },
-                    {
-                        n = G.UIT.R,
-                        config = { padding = 0.05, align = 'cm' },
-                        nodes = { { n = G.UIT.T, config = { text = "Testing", shadow = false, scale = scale * 0.8, colour = G.C.UI.TEXT_LIGHT } } }
-                    },
-                    {
-                        n = G.UIT.R,
-                        config = { padding = 0.02, align = 'cm' },
-                        nodes = { { n = G.UIT.T, config = { text = "adefmor", shadow = false, scale = scale, colour = G.C.GREEN } } }
-                    },
-                    {
-                        n = G.UIT.R,
-                        config = { padding = 0.05, align = 'cm' },
-                        nodes = { { n = G.UIT.T, config = { text = "Ideas & Art", shadow = false, scale = scale * 0.8, colour = G.C.UI.TEXT_LIGHT } } }
-                    },
-                    {
-                        n = G.UIT.R,
-                        config = { padding = 0.02, align = 'cm' },
-                        nodes = { { n = G.UIT.T, config = { text = "Balatro Suggestions Threads", shadow = false, scale = scale, colour = G.C.BLUE } } }
+                        config = { align = 'tl', padding = 0.15 },
+                        nodes = {
+                            -- LEFT COLUMN: Programming and Art
+                            {
+                                n = G.UIT.C,
+                                config = { align = 'tl', padding = 0.15 },
+                                nodes = {
+                                    -- Programming Section
+                                    {
+                                        n = G.UIT.C,
+                                        config = { align = 'tl', padding = 0.2, colour = G.C.L_BLACK, r = 0.1 },
+                                        nodes = {
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "Programming", shadow = false, scale = scale * 1.2, colour = G.C.WHITE } } }
+                                            },
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "Amolyte", shadow = false, scale = scale, colour = CREDITS_COLORS.amolyte } } }
+                                            },
+                                        }
+                                    },
+                                    -- Art Section
+                                    {
+                                        n = G.UIT.C,
+                                        config = { align = 'tl', padding = 0.2, colour = G.C.L_BLACK, r = 0.1 },
+                                        nodes = {
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "Art", shadow = false, scale = scale * 1.2, colour = G.C.WHITE } } }
+                                            },
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "adumbasswaffle", shadow = false, scale = scale, colour = CREDITS_COLORS.adumbasswaffle } } }
+                                            },
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "Lapsem_", shadow = false, scale = scale, colour = CREDITS_COLORS.lapsem } } }
+                                            },
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "DuplexMe", shadow = false, scale = scale, colour = CREDITS_COLORS.duplexme } } }
+                                            },
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "Guaraná", shadow = false, scale = scale, colour = CREDITS_COLORS.guarana } } }
+                                            },
+                                        }
+                                    },
+                                }
+                            },
+                            -- RIGHT COLUMN: Testing and Ideas
+                            {
+                                n = G.UIT.C,
+                                config = { align = 'tl', padding = 0.15 },
+                                nodes = {
+                                    -- Testing Section
+                                    {
+                                        n = G.UIT.C,
+                                        config = { align = 'tl', padding = 0.2, colour = G.C.L_BLACK, r = 0.1 },
+                                        nodes = {
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "Testing", shadow = false, scale = scale * 1.2, colour = G.C.WHITE } } }
+                                            },
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "adefmor", shadow = false, scale = scale, colour = CREDITS_COLORS.adefmor } } }
+                                            },
+                                        }
+                                    },
+                                    -- Ideas Section
+                                    {
+                                        n = G.UIT.C,
+                                        config = { align = 'tl', padding = 0.2, colour = G.C.L_BLACK, r = 0.1 },
+                                        nodes = {
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "Ideas", shadow = false, scale = scale * 1.2, colour = G.C.WHITE } } }
+                                            },
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "adefmor", shadow = false, scale = scale, colour = CREDITS_COLORS.adefmor } } }
+                                            },
+                                            {
+                                                n = G.UIT.R,
+                                                config = { padding = 0.05, align = 'tl' },
+                                                nodes = { { n = G.UIT.T, config = { text = "Balatro Suggestions Threads", shadow = false, scale = scale, colour = CREDITS_COLORS.suggestions } } }
+                                            },
+                                        }
+                                    },
+                                }
+                            },
+                        }
                     },
                 }
             }

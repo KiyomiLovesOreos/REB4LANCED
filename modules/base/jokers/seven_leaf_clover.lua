@@ -1,60 +1,74 @@
 return function(REB4LANCED)
--- Seven Leaf Clover: if the played hand contains at least one scoring 7,
--- all scoring cards count as Lucky Cards for this hand.
+-- Seven Leaf Clover: each scoring 7 boosts all probability numerators by +1.
+-- Counts all 7s at once in context.before so every card gets full boost.
 if REB4LANCED.config.joker_set_rank then
+
+if JokerDisplay then
+    JokerDisplay.Definitions["j_reb4l_seven_leaf_clover"] = {
+        text = {
+            { text = "+", scale = 0.3 },
+            { ref_table = "card.joker_display_values", ref_value = "odds" },
+            { text = " odds", scale = 0.25 },
+        },
+        calc_function = function(card)
+            card.joker_display_values.odds = G.GAME and G.GAME.reb4l_slc_odds or 0
+        end,
+    }
+end
+
 SMODS.Joker({
     key    = 'seven_leaf_clover',
     atlas  = 'reb4l_jokers',
     pos    = { x = 5, y = 0 },
     rarity = 1,
     cost   = 6,
-    config = {},
+
+    blueprint_compat = false,
+    eternal_compat = true,
+
+    config = {
+        extra = {
+            odds = 0,
+        }
+    },
+
     loc_txt = {
         name = 'Seven Leaf Clover',
         text = {
-            'If hand contains a scoring {C:attention}7{},',
-            'all cards count as {C:attention}Lucky Cards{}',
+            'Before scoring, increases',
+            'all odds by {C:green}+1{} per',
+            '{C:attention}7{} in the played hand',
         },
     },
+
     loc_vars = function(self, info_queue, card)
-        info_queue[#info_queue + 1] = G.P_CENTERS.m_lucky
-        return { vars = {} }
+        local boost = G.GAME and G.GAME.reb4l_slc_odds or 0
+        return { vars = { boost } }
     end,
+
     calculate = function(self, card, context)
         if context.before and not context.blueprint then
-            local has_seven = false
-            for _, c in ipairs(context.scoring_hand) do
-                if c:get_id() == 7 and not c.debuff then
-                    has_seven = true
-                    break
-                end
+            local sevens = 0
+            for _, c in ipairs(G.play.cards or {}) do
+                if c:get_id() == 7 then sevens = sevens + 1 end
             end
-            if has_seven then
-                local lucky = G.P_CENTERS.m_lucky
-                for _, c in ipairs(context.scoring_hand) do
-                    c.reb4l_slc          = true
-                    c.reb4l_slc_effect   = c.ability.effect
-                    c.reb4l_slc_mult     = c.ability.mult
-                    c.reb4l_slc_pdollars = c.ability.p_dollars
-                    c.ability.effect     = 'Lucky Card'
-                    c.ability.mult       = lucky and lucky.config.mult     or 20
-                    c.ability.p_dollars  = lucky and lucky.config.p_dollars or 20
-                end
+            G.GAME.reb4l_slc_odds = card.debuff and 0 or sevens
+
+            if sevens > 0 then
+                return { message = '+' .. sevens, colour = G.C.GREEN }
             end
         end
-
-        if context.after then
-            for _, c in ipairs(context.scoring_hand) do
-                if c.reb4l_slc then
-                    c.ability.effect    = c.reb4l_slc_effect
-                    c.ability.mult      = c.reb4l_slc_mult
-                    c.ability.p_dollars = c.reb4l_slc_pdollars
-                    c.reb4l_slc          = nil
-                    c.reb4l_slc_effect   = nil
-                    c.reb4l_slc_mult     = nil
-                    c.reb4l_slc_pdollars = nil
+        -- Clear after all scoring is done, deferred so probability checks
+        -- during joker finalization still see the boost
+        if context.final_scoring_step and not context.blueprint then
+            G.E_MANAGER:add_event(Event({
+                trigger = 'after',
+                delay = 0.0,
+                func = function()
+                    G.GAME.reb4l_slc_odds = nil
+                    return true
                 end
-            end
+            }))
         end
     end,
 })

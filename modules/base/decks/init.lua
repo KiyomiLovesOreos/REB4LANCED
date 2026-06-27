@@ -7,7 +7,6 @@ return function(REB4LANCED)
     end
 
     load_deck("atlas")
-    load_deck("erratic")
     load_deck("plasma")
     load_deck("abandoned")
     load_deck("checkered")

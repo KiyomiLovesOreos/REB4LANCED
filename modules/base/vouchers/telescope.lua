@@ -7,7 +7,7 @@ SMODS.Voucher:take_ownership('telescope', {
         name = 'Telescope',
         text = {
             '{C:planet}Planet{} cards in the {C:attention}shop{}',
-            'have a {C:green}1{C:inactive} in {C:green}2{} chance',
+            'have a {C:green}1{C:inactive} in {C:green}3{} chance',
             'to be your most played',
             '{C:attention}poker hand\'s{} planet',
         },

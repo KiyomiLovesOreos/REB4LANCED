@@ -3,7 +3,12 @@ return function(REB4LANCED)
     local path = REB4LANCED.module_roots.base .. "jokers/"
 
     local function load_joker(name)
-        assert(loadfile(path .. name .. ".lua"))()(REB4LANCED)
+        local success, err = pcall(function()
+            assert(loadfile(path .. name .. ".lua"))()(REB4LANCED)
+        end)
+        if not success then
+            print("[REB4LANCED] Joker load failed: " .. name .. " - " .. tostring(err))
+        end
     end
 
     load_joker("atlas")
@@ -24,6 +29,7 @@ return function(REB4LANCED)
     load_joker("flower_pot")
     load_joker("delayed_gratification")
     load_joker("seeing_double")
+    load_joker("splash")
     load_joker("smeared_joker")
     load_joker("mime")
     load_joker("baron")

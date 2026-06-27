@@ -74,6 +74,7 @@ REB4LANCED.PRESET_KEYS = {
     -- Decks (reworks)
     { 'abandoned_enhanced',        'bool' },
     { 'checkered_enhanced',        'bool' },
+    { 'green_enhanced',            'bool' },
     { 'anaglyph_enhanced',         'bool' },
     { 'painted_mode',              'cycle', 3 },
     { 'black_deck_enhanced',       'bool' },
@@ -123,6 +124,8 @@ REB4LANCED.PRESET_KEYS = {
     { 'axiom_set',                 'bool' },
     { 'spectral_set_sell_value',   'bool' },
     { 'spectral_set_debt',         'bool' },
+    -- Challenges
+    { 'challenge_stake_selection',  'bool' },
 }
 
 -- ─── SUGGESTED PRESET ─────────────────────────────────────────────────────────
@@ -196,6 +199,7 @@ REB4LANCED.SUGGESTED = {
     -- Decks (reworks)
     abandoned_enhanced        = true,
     checkered_enhanced        = true,
+    green_enhanced            = true,
     anaglyph_enhanced         = false,
     painted_mode              = 3, -- 1=Vanilla  2=-1 Hand/Round     3=-1 Discard/Round
     black_deck_enhanced       = true,
@@ -245,6 +249,8 @@ REB4LANCED.SUGGESTED = {
     axiom_set                 = true,
     spectral_set_sell_value   = true,
     spectral_set_debt         = false,
+    -- Challenges
+    challenge_stake_selection = true,
 }
 
 -- ─── Encode / decode ──────────────────────────────────────────────────────────

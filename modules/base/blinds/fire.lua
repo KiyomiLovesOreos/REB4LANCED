@@ -46,10 +46,10 @@ SMODS.Blind({
             'the blind by {C:red}X1.1{}',
         },
     },
-    calculate = function(self, blind, context)
+    calculate = function(self, context)
         -- Live: each scoring card evaluation immediately grows the blind.
-        if context.individual and not blind.disabled then
-            fire_tick(blind)
+        if context.individual and not self.disabled then
+            fire_tick(self)
         end
 
         -- ── Batch version (saved for reference) ────────────────────────────

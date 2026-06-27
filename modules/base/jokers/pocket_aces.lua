@@ -7,12 +7,12 @@ SMODS.Joker({
     pos    = { x = 6, y = 0 },
     rarity = 1,
     cost   = 5,
-    config = { extra = 5 },
+    config = { extra = 10 },
     loc_txt = {
         name = 'Pocket Aces',
         text = {
-            'If scoring hand contains',
-            'a {C:attention}pair of Aces{},',
+            'If played hand is',
+            'a {C:attention}Pair of Aces{},',
             'earn {C:money}$#1#{}',
         },
     },
@@ -21,18 +21,20 @@ SMODS.Joker({
     end,
     calculate = function(self, card, context)
         if context.joker_main and not context.blueprint then
-            local ace_count = 0
-            for _, c in ipairs(context.scoring_hand) do
-                if c:get_id() == 14 and not c.debuff then
-                    ace_count = ace_count + 1
+            if G.GAME.last_hand_played == "Pair" then
+                local ace_count = 0
+                for _, c in ipairs(context.scoring_hand) do
+                    if c:get_id() == 14 and not c.debuff then
+                        ace_count = ace_count + 1
+                    end
                 end
-            end
-            if ace_count >= 2 then
-                return {
-                    dollars = card.ability.extra,
-                    message = '+$' .. card.ability.extra,
-                    colour  = G.C.MONEY,
-                }
+                if ace_count >= 2 then
+                    return {
+                        dollars = card.ability.extra,
+                        message = '+$' .. card.ability.extra,
+                        colour  = G.C.MONEY,
+                    }
+                end
             end
         end
     end,
